@@ -951,6 +951,8 @@ document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e
 
 renderAll(false);
 setTimeout(()=>renderLayers(), 150);
+loadUmapLayer();
+const umapInterval = setInterval(loadUmapLayer, 60000);
 </script>
 
 <!-- MODE SELECT SCREEN -->
