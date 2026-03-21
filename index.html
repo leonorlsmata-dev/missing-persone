@@ -280,6 +280,8 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .ptable .cell-editable { cursor: text; }
 .ptable .cell-editable:hover { background: rgba(212,118,10,0.06); }
 .ptable .cell-editing input { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; border: 1px solid var(--accent); border-radius: 2px; padding: 2px 5px; background: var(--surface); color: var(--text); width: 100%; outline: none; }
+.pt-zone-select { font-family: 'IBM Plex Mono', monospace; font-size: 10px; border: 1px dashed var(--border); border-radius: 2px; padding: 1px 3px; background: var(--surface); color: var(--muted); width: 100%; outline: none; cursor: pointer; }
+.pt-zone-select.has-zone { border-color: rgba(200,168,0,0.3); color: var(--yellow); background: rgba(200,168,0,0.08); }
 .pt-badge-team { display: inline-block; background: rgba(212,118,10,0.1); border: 1px solid rgba(212,118,10,0.25); color: var(--accent); border-radius: 2px; padding: 1px 6px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; }
 .pt-badge-zone { display: inline-block; background: rgba(200,168,0,0.08); border: 1px solid rgba(200,168,0,0.3); color: var(--yellow); border-radius: 2px; padding: 1px 6px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; }
 .pt-badge-zone.done { background: rgba(39,168,90,0.08); border-color: rgba(39,168,90,0.3); color: var(--green); }
@@ -827,8 +829,11 @@ function renderPeopleTable(){
   const body=document.getElementById('pt-body');
   if(!body)return;
 
-  // Sync team datalist and filter dropdown
-  const teamNames=[...new Set(people.map(p=>p.team||'').filter(Boolean))].sort();
+  // Sync team datalist and filter dropdown — combine teams array + names from people
+  const teamNames=[...new Set([
+    ...teams.map(t=>t.name||'').filter(Boolean),
+    ...people.map(p=>p.team||'').filter(Boolean)
+  ])].sort();
   const dl=document.getElementById('pt-team-list');
   if(dl)dl.innerHTML=teamNames.map(t=>`<option value="${t}">`).join('');
   const tf=document.getElementById('pt-team-filter');
@@ -882,8 +887,10 @@ function renderPeopleTable(){
     const z=zones.find(x=>x.id===p.zone);
     const zname=z?z.name:'';
     const zdone=z&&z.status==='done';
-    const zbadge=z?`<span class="pt-badge-zone${zdone?' done':''}" onclick="ptPickZone(${p.id})" title="Clica para mudar">${zname}</span>`
-                   :`<span class="pt-badge-zone empty" onclick="ptPickZone(${p.id})" title="Atribuir zona">+ zona</span>`;
+    const zbadge=`<select class="pt-zone-select" onchange="ptSetZone(${p.id},this.value)" title="Seleccionar zona">
+        <option value="">+ zona</option>
+        ${zones.map(zz=>`<option value="${zz.id}"${zz.id===p.zone?' selected':''}>${zz.name}</option>`).join('')}
+      </select>`;
     return`<tr>
       <td class="cell-name cell-editable" onclick="ptEditCell(this,${p.id},'name')" title="Clica para editar">${p.name}</td>
       <td class="cell-phone cell-editable" onclick="ptEditCell(this,${p.id},'phone')" title="Clica para editar">${p.phone||'—'}</td>
@@ -906,6 +913,7 @@ function ptEditCell(td, pid, field){
   td.textContent='';
   td.appendChild(inp);
   inp.focus();inp.select();
+  if(field==='team')inp.dispatchEvent(new Event('input'));
   function save(){
     const val=inp.value.trim();
     if(field==='name'&&!val){td.classList.remove('cell-editing');renderPeopleTable();return;}
