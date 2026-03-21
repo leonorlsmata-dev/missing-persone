@@ -195,6 +195,17 @@ Active plan: `docs/superpowers/plans/2026-03-21-persistence-sync-mobile-export.m
 
 ---
 
+## uMap Layers
+
+O mapa uMap `1379403` tem 2 layers, ambas carregadas em paralelo pela app:
+- `e0c5c3aa-50ae-41bd-b024-a5102ef8b10f` — "Pesquisado" (rotas e áreas pesquisadas)
+- `8c7289c8-3bfe-4374-9f23-f1b36971b2e7` — "Layer 2" (zonas com marcadores e polígonos)
+
+URL pattern: `https://umap.openstreetmap.fr/en/datalayer/1379403/<UUID>/`
+Implementado em `UMAP_URLS` (array) + `fetchOneLayer()` + `Promise.all` em `loadUmapLayer()`.
+
+---
+
 ## Search Area Reference
 
 | Location | Coordinates | Notes |
