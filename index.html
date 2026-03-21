@@ -44,7 +44,7 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 /* MODE SELECT OVERLAY */
 #mode-screen {
   position: fixed; inset: 0; background: #f2f2f0;
-  display: flex; flex-direction: column;
+  display: none; flex-direction: column;
   align-items: center; justify-content: center;
   z-index: 9000; gap: 12px; padding: 24px;
 }
@@ -970,7 +970,7 @@ renderAll(false);
 setTimeout(()=>renderLayers(), 150);
 loadUmapLayer();
 const umapInterval = setInterval(loadUmapLayer, 60000);
-selectMode('coordinator');
+appMode = 'coordinator';
 </script>
 
 <!-- MODE SELECT SCREEN -->
@@ -1299,6 +1299,10 @@ CREATE POLICY "public_access" ON locations
     </div>`;
   document.body.appendChild(overlay);
 }
+
+// ─── AUTO-START COORDINATOR ───────────────────────────────────────────────────
+if (!sb) showSupabaseSetup();
+else startCoordinator();
 
 // ─── CLEANUP ──────────────────────────────────────────────────────────────────
 window.addEventListener('beforeunload', () => {
