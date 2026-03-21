@@ -444,7 +444,7 @@ const SC={pending:'#c8a800',active:'#2e6fb5',done:'#27a85a',flagged:'#d63c34'};
 const SL={pending:'Pendente',active:'Em curso',done:'Concluída',flagged:'SINALIZADA'};
 // ─── UMAP REFERENCE LAYER ─────────────────────────────────────────────────────
 const UMAP_URL = 'https://umap.openstreetmap.fr/en/datalayer/1379403/e0c5c3aa-50ae-41bd-b024-a5102ef8b10f/';
-const CORS_PROXY = 'https://corsproxy.io/?url=';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 let umapLayer = null;
 let lastUmapData = null;
 
@@ -920,9 +920,19 @@ function exportCSV() {
 // ─── UMAP FETCH ───────────────────────────────────────────────────────────────
 async function loadUmapLayer() {
   const statusEl = document.getElementById('umap-status');
+  const proxies = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?url=',
+  ];
   try {
-    const res = await fetch(CORS_PROXY + encodeURIComponent(UMAP_URL));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    let res, lastErr;
+    for (const proxy of proxies) {
+      try {
+        res = await fetch(proxy + encodeURIComponent(UMAP_URL));
+        if (res.ok) break;
+      } catch(e) { lastErr = e; res = null; }
+    }
+    if (!res || !res.ok) throw lastErr || new Error('all proxies failed');
     const raw = await res.text();
     if (raw === lastUmapData) return; // no change since last fetch
     const geojson = JSON.parse(raw);
