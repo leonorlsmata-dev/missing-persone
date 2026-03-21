@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Busca Ricardo Claro</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.7/umd/supabase.min.js"></script>
+<style>
+:root {
+  --bg: #f2f2f0;
+  --surface: #ffffff;
+  --surface2: #f5f5f3;
+  --border: #e0e0dc;
+  --text: #1a1a1a;
+  --muted: #888;
+  --accent: #d4760a;
+  --red: #d63c34;
+  --green: #27a85a;
+  --blue: #2e6fb5;
+  --yellow: #c8a800;
+  --purple: #7c3aed;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; height: 50px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 1000; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.header-title { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.header-sub { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); }
+.header-right { display: flex; gap: 6px; }
+.hbtn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 5px 11px; border-radius: 3px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.06em; }
+.hbtn:hover { border-color: var(--accent); color: var(--accent); }
+.hbtn.red { border-color: rgba(214,60,52,0.4); color: var(--red); }
+.hbtn.red:hover { background: rgba(214,60,52,0.06); }
+.hbtn.green { border-color: rgba(39,168,90,0.4); color: var(--green); background: rgba(39,168,90,0.06); }
+.hbtn.gps-on { border-color: rgba(39,168,90,0.6); color: white; background: var(--green); }
+.hbtn.gps-on:hover { background: #229950; }
+
+/* MODE SELECT OVERLAY */
+#mode-screen {
+  position: fixed; inset: 0; background: #f2f2f0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 9000; gap: 12px; padding: 24px;
+}
+.mode-title { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #1a1a1a; margin-bottom: 8px; text-align: center; }
+.mode-sub { font-size: 12px; color: #888; margin-bottom: 24px; text-align: center; line-height: 1.6; max-width: 320px; }
+.mode-btn { width: 280px; padding: 16px 20px; border-radius: 6px; border: 1px solid #e0e0dc; background: white; cursor: pointer; text-align: left; transition: all 0.15s; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.mode-btn:hover { border-color: #d4760a; box-shadow: 0 2px 8px rgba(212,118,10,0.12); }
+.mode-btn-title { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.mode-btn-desc { font-size: 11px; color: #888; line-height: 1.5; }
+.mode-btn.coord .mode-btn-title { color: #d4760a; }
+.mode-btn.searcher .mode-btn-title { color: #2e6fb5; }
+.mode-name-input { width: 280px; padding: 10px 12px; border: 1px solid #e0e0dc; border-radius: 4px; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; outline: none; background: white; display: none; }
+.mode-name-input:focus { border-color: #2e6fb5; }
+.mode-confirm-btn { width: 280px; padding: 10px; background: #2e6fb5; color: white; border: none; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; cursor: pointer; display: none; letter-spacing: 0.06em; }
+.mode-confirm-btn:hover { background: #245d9e; }
+
+/* LIVE TRACKER PANEL (coordinator only) */
+#tracker-panel {
+  position: absolute; bottom: 16px; right: 16px;
+  background: white; border: 1px solid #e0e0dc;
+  border-radius: 6px; padding: 12px 14px;
+  min-width: 200px; max-width: 260px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  z-index: 500; display: none;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.tp-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.tp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; animation: pulse 2s infinite; }
+.tp-person { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f0f0ee; font-size: 12px; }
+.tp-person:last-child { border-bottom: none; }
+.tp-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; flex-shrink: 0; }
+.tp-name { flex: 1; font-weight: 500; }
+.tp-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #888; }
+.tp-empty { font-size: 11px; color: #888; text-align: center; padding: 8px 0; }
+
+/* SEARCHER GPS BAR */
+#gps-bar {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: #2e6fb5; color: white; padding: 10px 16px;
+  font-size: 13px; z-index: 500; text-align: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 0.05em;
+}
+#gps-bar.active { background: var(--green); }
+
+.main { display: flex; flex: 1; overflow: hidden; }
+.sidebar { width: 300px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stab { flex: 1; padding: 9px 4px; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.stab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+.tab-content.active { display: flex; }
+.tab-content::-webkit-scrollbar { width: 3px; }
+.tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.stats-bar { display: grid; grid-template-columns: repeat(4,1fr); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stat-cell { padding: 9px 4px; text-align: center; border-right: 1px solid var(--border); }
+.stat-cell:last-child { border-right: none; }
+.stat-num { font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600; line-height: 1; margin-bottom: 2px; }
+.stat-lbl { font-size: 10px; color: var(--muted); }
+.sn-p{color:var(--yellow);} .sn-a{color:var(--blue);} .sn-d{color:var(--green);} .sn-f{color:var(--red);}
+
+.progress-wrap { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.progress-label { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.progress-track { height: 4px; background: var(--border); border-radius: 2px; }
+.progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.4s ease; }
+
+/* BULK UPDATE PANEL */
+.bulk-panel { padding: 10px 12px; border-bottom: 1px solid var(--border); background: #fffbf0; flex-shrink: 0; }
+.bulk-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.bulk-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
+.bulk-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.bulk-input { flex: 1; min-width: 100px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--text); outline: none; }
+.bulk-input:focus { border-color: var(--accent); }
+.bulk-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 5px 10px; border-radius: 3px; border: 1px solid; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.bulk-done { border-color: rgba(39,168,90,0.5); color: var(--green); background: rgba(39,168,90,0.06); }
+.bulk-done:hover { background: rgba(39,168,90,0.15); }
+.bulk-active { border-color: rgba(46,111,181,0.5); color: var(--blue); background: rgba(46,111,181,0.06); }
+.bulk-active:hover { background: rgba(46,111,181,0.15); }
+.bulk-pending { border-color: rgba(200,168,0,0.5); color: var(--yellow); background: rgba(200,168,0,0.06); }
+.bulk-pending:hover { background: rgba(200,168,0,0.15); }
+
+/* FILTER BAR */
+.filter-bar { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+.fbtn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 2px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.12s; }
+.fbtn.active { font-weight: 600; }
+.fbtn.all.active { border-color: var(--text); color: var(--text); }
+.fbtn.pending.active { border-color: var(--yellow); color: var(--yellow); background: rgba(200,168,0,0.07); }
+.fbtn.active-f.active { border-color: var(--blue); color: var(--blue); background: rgba(46,111,181,0.07); }
+.fbtn.done.active { border-color: var(--green); color: var(--green); background: rgba(39,168,90,0.07); }
+.fbtn.flagged.active { border-color: var(--red); color: var(--red); background: rgba(214,60,52,0.07); }
+
+.zone-item { padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.1s; }
+.zone-item:hover { background: var(--surface2); }
+.zone-item.sel { background: rgba(212,118,10,0.06); border-left: 2px solid var(--accent); padding-left: 10px; }
+.zone-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.zone-body { flex: 1; min-width: 0; }
+.zone-name { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zone-meta { font-size: 11px; color: var(--muted); }
+.zbadge { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 5px; border-radius: 2px; flex-shrink: 0; }
+.zb-pending{background:rgba(200,168,0,0.12);color:var(--yellow);}
+.zb-active{background:rgba(46,111,181,0.12);color:var(--blue);}
+.zb-done{background:rgba(39,168,90,0.12);color:var(--green);}
+.zb-flagged{background:rgba(214,60,52,0.12);color:var(--red);}
+
+.zdp { background: #fff8f0; border-bottom: 1px solid #f0dfc0; padding: 10px 12px; display: none; flex-shrink: 0; }
+.zdp.open { display: block; }
+.zdp-title { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 3px; }
+.zdp-focus { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.zdp-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+.zdp-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 4px 9px; border-radius: 3px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.12s; }
+.zdp-btn:hover { border-color: var(--accent); }
+.zdp-btn.a{color:var(--blue);border-color:rgba(46,111,181,0.4);}
+.zdp-btn.d{color:var(--green);border-color:rgba(39,168,90,0.4);}
+.zdp-btn.f{color:var(--red);border-color:rgba(214,60,52,0.4);}
+.zdp-btn.p{color:var(--yellow);border-color:rgba(200,168,0,0.4);}
+.zdp-history { margin-top: 8px; border-top: 1px solid #f0dfc0; padding-top: 8px; }
+.zdp-history-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.zdp-history-item { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0dfc0; font-size: 11px; line-height: 1.4; }
+.zdp-history-item:last-child { border-bottom: none; }
+.zdp-hi-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); flex-shrink: 0; min-width: 80px; }
+.zdp-hi-body { flex: 1; color: var(--text); }
+.zdp-hi-team { font-weight: 600; color: var(--accent); }
+.zdp-hi-status-done { color: var(--green); }
+.zdp-hi-status-active { color: var(--blue); }
+.zdp-hi-status-flagged { color: var(--red); font-weight: 600; }
+.zdp-hi-status-pending { color: var(--yellow); }
+
+.sec-head { padding: 6px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface2); position: sticky; top: 0; flex-shrink: 0; z-index: 1; }
+.sec-head.red { color: var(--red); }
+.sec-head.yel { color: var(--yellow); }
+.sec-head.blu { color: var(--blue); }
+
+.team-item { padding: 9px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 9px; }
+.tavatar { width: 27px; height: 27px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: white; flex-shrink: 0; }
+.tbody { flex: 1; min-width: 0; }
+.tname { font-size: 13px; font-weight: 500; margin-bottom: 1px; }
+.tzone { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcheckin { font-family: 'IBM Plex Mono', monospace; font-size: 10px; flex-shrink: 0; }
+.tc-ok{color:var(--green);} .tc-late{color:var(--red);}
+
+.log-item { padding: 6px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+.ltime { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); flex-shrink: 0; margin-top: 1px; min-width: 34px; }
+.ltext { font-size: 12px; line-height: 1.5; flex: 1; }
+.lteam { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--accent); flex-shrink: 0; text-align: right; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-flag{color:var(--red);font-weight:500;} .lt-ok{color:var(--green);} .lt-normal{color:var(--text);}
+
+.ecard { display: flex; align-items: center; gap: 9px; padding: 8px 10px; background: rgba(214,60,52,0.05); border: 1px solid rgba(214,60,52,0.18); border-radius: 3px; margin-bottom: 6px; }
+.eicon{font-size:13px;} .ebody{flex:1;} .ename{font-size:12px;font-weight:500;margin-bottom:1px;} .enum{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+.ecopy { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 3px 7px; border: 1px solid rgba(214,60,52,0.3); border-radius: 2px; background: transparent; color: var(--red); cursor: pointer; }
+.ecopy:hover{background:rgba(214,60,52,0.08);}
+
+.add-row{padding:8px 12px;border-bottom:1px solid var(--border);}
+.addbtn{width:100%;padding:6px;background:transparent;border:1px dashed var(--border);border-radius:3px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s;}
+.addbtn:hover{border-color:var(--accent);color:var(--accent);}
+
+#map{flex:1;}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:20px;width:420px;max-width:92vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.mtitle{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;}
+.fgrp{margin-bottom:11px;}
+.flabel{display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.finput,.fselect,.ftextarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:6px 9px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.15s;}
+.finput:focus,.fselect:focus,.ftextarea:focus{border-color:var(--accent);}
+.fselect option{background:white;}
+.ftextarea{resize:vertical;min-height:60px;}
+.mactions{display:flex;gap:6px;justify-content:flex-end;margin-top:14px;}
+.mbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:6px 14px;border-radius:3px;cursor:pointer;border:1px solid var(--border);transition:all 0.15s;background:var(--surface);}
+.mbtn-ghost{color:var(--muted);} .mbtn-ghost:hover{color:var(--text);}
+.mbtn-primary{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;}
+.mbtn-danger{background:var(--red);border-color:var(--red);color:white;}
+.warn-box{background:rgba(214,60,52,0.06);border:1px solid rgba(214,60,52,0.2);border-radius:3px;padding:9px 11px;font-size:12px;line-height:1.5;margin-bottom:12px;}
+
+.leaflet-popup-content-wrapper{background:white;border:1px solid #ddd;border-radius:4px;box-shadow:0 3px 16px rgba(0,0,0,0.12);color:var(--text);}
+.leaflet-popup-tip{background:white;}
+.leaflet-popup-content{margin:11px 13px;font-family:'IBM Plex Sans',sans-serif;min-width:230px;}
+.pu-name{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;margin-bottom:4px;}
+.pu-meta{font-size:11px;color:var(--blue);margin-bottom:3px;}
+.pu-pri{font-size:11px;margin-bottom:5px;}
+.pu-focus{font-size:11px;color:#666;margin-bottom:8px;line-height:1.5;}
+.pu-btns{display:flex;gap:4px;flex-wrap:wrap;}
+.pbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 8px;border-radius:2px;border:1px solid #ddd;background:white;color:var(--text);cursor:pointer;}
+.pbtn:hover{background:#f5f5f5;}
+.pbtn-a{color:var(--blue);border-color:rgba(46,111,181,0.4);}
+.pbtn-d{color:var(--green);border-color:rgba(39,168,90,0.4);}
+.pbtn-f{color:var(--red);border-color:rgba(214,60,52,0.4);}
+.pbtn-p{color:var(--yellow);border-color:rgba(200,168,0,0.4);}
+
+.wa-box{margin:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:9px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.7;color:var(--muted);white-space:pre;}
+.info-text{padding:11px 12px;font-size:12px;line-height:1.8;color:var(--muted);}
+
+.empty-state{padding:20px 12px;color:var(--muted);font-size:12px;text-align:center;}
+
+@media (max-width: 768px) {
+  #sidebar-toggle { display: block !important; }
+  .header-title { font-size: 10px; }
+  .header-sub { display: none; }
+  .hbtn { font-size: 9px; padding: 4px 7px; }
+  .sidebar {
+    position: absolute;
+    left: -300px;
+    top: 50px;
+    bottom: 0;
+    z-index: 900;
+    transition: left 0.25s ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+  }
+  .sidebar.open { left: 0; }
+  #map { width: 100vw; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="pulse-dot"></div>
+    <div>
+      <div class="header-title">Busca Ricardo Claro</div>
+      <div class="header-sub" id="header-sub">80 zonas · ~2km² · Faro–Olhão–Moncarapacho</div>
+    </div>
+    <button class="hbtn" id="sidebar-toggle" onclick="toggleSidebar()" style="display:none">&#9776; Zonas</button>
+  </div>
+  <div class="header-right">
+    <button class="hbtn" onclick="exportCSV()">&#8595; Exportar</button>
+    <button class="hbtn" onclick="openModal('checkin')">✓ Check-in</button>
+    <button class="hbtn red" onclick="openModal('report')">⚠ Ocorrência</button>
+    <button class="hbtn" onclick="openModal('team')">+ Equipa</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-tabs">
+      <div class="stab active" onclick="switchTab('zones')">Zonas</div>
+      <div class="stab" onclick="switchTab('teams')">Equipas</div>
+      <div class="stab" onclick="switchTab('log')">Registo</div>
+      <div class="stab" onclick="switchTab('info')">Info</div>
+    </div>
+
+    <!-- ZONES TAB -->
+    <div class="tab-content active" id="tab-zones">
+      <div class="stats-bar">
+        <div class="stat-cell"><div class="stat-num sn-p" id="sn-p">0</div><div class="stat-lbl">Pendente</div></div>
+        <div class="stat-cell"><div class="stat-num sn-a" id="sn-a">0</div><div class="stat-lbl">Em curso</div></div>
+        <div class="stat-cell"><div class="stat-num sn-d" id="sn-d">0</div><div class="stat-lbl">Concluída</div></div>
+        <div class="stat-cell"><div class="stat-num sn-f" id="sn-f">0</div><div class="stat-lbl">Sinalizada</div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>Progresso geral</span><span id="prog-pct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+
+      <!-- BULK UPDATE -->
+      <div class="bulk-panel">
+        <div class="bulk-label">Marcar zonas em massa</div>
+        <div class="bulk-hint">Números separados por vírgula, ex: 1,3,5,12,18</div>
+        <div class="bulk-row" style="margin-bottom:5px">
+          <input class="bulk-input" id="bulk-input" placeholder="ex: 1,2,3,4,5" />
+          <input class="bulk-input" id="bulk-team" placeholder="Equipa (opcional)" style="max-width:110px" />
+        </div>
+        <div class="bulk-row">
+          <button class="bulk-btn bulk-done" onclick="bulkSet('done')">✓ Concluídas</button>
+          <button class="bulk-btn bulk-active" onclick="bulkSet('active')">▶ Em curso</button>
+          <button class="bulk-btn bulk-pending" onclick="bulkSet('pending')">↺ Pendente</button>
+        </div>
+      </div>
+
+      <!-- FILTER -->
+      <div class="filter-bar">
+        <button class="fbtn all active" onclick="setFilter('all')">Todas</button>
+        <button class="fbtn pending" onclick="setFilter('pending')">Pendente</button>
+        <button class="fbtn active-f" onclick="setFilter('active')">Em curso</button>
+        <button class="fbtn done" onclick="setFilter('done')">Concluída</button>
+        <button class="fbtn flagged" onclick="setFilter('flagged')">Sinalizada</button>
+      </div>
+
+      <div class="zdp" id="zdp">
+        <div class="zdp-title" id="zdp-title"></div>
+        <div class="zdp-focus" id="zdp-focus"></div>
+        <div class="zdp-actions" id="zdp-actions"></div>
+        <div class="zdp-history" id="zdp-history" style="display:none">
+          <div class="zdp-history-label">Histórico desta zona</div>
+          <div id="zdp-history-list"></div>
+        </div>
+      </div>
+
+      <div id="zone-list"></div>
+      <div class="add-row"><button class="addbtn" onclick="openModal('zone')">+ Adicionar zona</button></div>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div class="tab-content" id="tab-teams">
+      <div class="sec-head">Equipas ativas</div>
+      <div id="team-list"></div>
+      <div class="add-row"><button class="addbtn" onclick="openModal('team')">+ Adicionar equipa</button></div>
+    </div>
+
+    <!-- LOG TAB -->
+    <div class="tab-content" id="tab-log">
+      <div class="sec-head">Registo</div>
+      <div id="log-list"></div>
+    </div>
+
+    <!-- INFO TAB -->
+    <div class="tab-content" id="tab-info">
+      <div class="sec-head">Contactos emergência</div>
+      <div style="padding:10px 12px">
+        <div class="ecard"><div class="eicon">🚨</div><div class="ebody"><div class="ename">PJ Diretoria do Sul</div><div class="enum">289 889 850</div></div><button class="ecopy" onclick="copyText('289 889 850',this)">COPIAR</button></div>
+        <div class="ecard"><div class="eicon">🚒</div><div class="ebody"><div class="ename">Bombeiros Faro</div><div class="enum">289 803 940</div></div><button class="ecopy" onclick="copyText('289 803 940',this)">COPIAR</button></div>
+        <div class="ecard"><div class="eicon">🚔</div><div class="ebody"><div class="ename">GNR Olhão</div><div class="enum">289 702 020</div></div><button class="ecopy" onclick="copyText('289 702 020',this)">COPIAR</button></div>
+      </div>
+      <div class="sec-head">Template WhatsApp</div>
+      <div class="wa-box">Equipa [NOME], Zona [X]
+Estado: [em curso/concluída/algo encontrado]
+Próxima zona: [Y]
+Hora: [HH:MM]
+Obs: –</div>
+      <div class="add-row"><button class="addbtn" onclick="copyTemplate()">📋 Copiar template</button></div>
+      <div class="sec-head">Regras no terreno</div>
+      <div class="info-text">
+        1. Nunca pesquisar sozinho<br>
+        2. Check-in a cada 30 min<br>
+        3. Algo encontrado → ligar PJ <b style="color:var(--text)">antes</b> de tocar<br>
+        4. Fotografar com GPS ativo<br>
+        5. Não partilhar nas redes<br>
+        6. Foco: valetas, ribeiras, laranjais, armazéns abandonados, matagal denso
+      </div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="modal-zone"><div class="modal">
+  <div class="mtitle">Nova zona</div>
+  <div class="fgrp"><label class="flabel">Nome</label><input class="finput" id="z-name" placeholder="ex: Zona 81"></div>
+  <div class="fgrp"><label class="flabel">O que pesquisar</label><textarea class="ftextarea" id="z-focus" placeholder="ex: Valetas, laranjais..."></textarea></div>
+  <div class="fgrp"><label class="flabel">Prioridade</label><select class="fselect" id="z-pri"><option value="high">Alta</option><option value="mid" selected>Média</option></select></div>
+  <div class="fgrp"><label class="flabel">Estado</label><select class="fselect" id="z-status"><option value="pending">Pendente</option><option value="active">Em curso</option><option value="done">Concluída</option></select></div>
+  <div class="mactions"><button class="mbtn mbtn-ghost" onclick="closeModal('zone')">Cancelar</button><button class="mbtn mbtn-primary" onclick="addZone()">Adicionar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-team"><div class="modal">
+  <div class="mtitle">Nova equipa</div>
+  <div class="fgrp"><label class="flabel">Nome</label><input class="finput" id="t-name" placeholder="ex: Equipa C"></div>
+  <div class="fgrp"><label class="flabel">Responsável + contacto</label><input class="finput" id="t-lead" placeholder="ex: João – 912 000 000"></div>
+  <div class="fgrp"><label class="flabel">Nº elementos</label><input class="finput" id="t-size" type="number" min="1" placeholder="3"></div>
+  <div class="fgrp"><label class="flabel">Zona atribuída</label><select class="fselect" id="t-zone"><option value="">— sem zona —</option></select></div>
+  <div class="mactions"><button class="mbtn mbtn-ghost" onclick="closeModal('team')">Cancelar</button><button class="mbtn mbtn-primary" onclick="addTeam()">Adicionar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-checkin"><div class="modal">
+  <div class="mtitle">Check-in</div>
+  <div class="fgrp"><label class="flabel">Equipa</label><select class="fselect" id="ci-team"></select></div>
+  <div class="fgrp"><label class="flabel">Zona</label><select class="fselect" id="ci-zone"></select></div>
+  <div class="fgrp"><label class="flabel">Estado</label><select class="fselect" id="ci-status">
+    <option value="active">A pesquisar</option>
+    <option value="done">Concluída – nada encontrado</option>
+    <option value="flagged">⚠ Algo encontrado – PJ contactada</option>
+  </select></div>
+  <div class="fgrp"><label class="flabel">Data (se não for hoje)</label><input class="finput" id="ci-date" type="date" /></div>
+  <div class="fgrp"><label class="flabel">Observações</label><textarea class="ftextarea" id="ci-notes" placeholder="Notas..."></textarea></div>
+  <div class="mactions"><button class="mbtn mbtn-ghost" onclick="closeModal('checkin')">Cancelar</button><button class="mbtn mbtn-primary" onclick="doCheckin()">Registar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-report"><div class="modal">
+  <div class="mtitle">⚠ Ocorrência</div>
+  <div class="warn-box"><strong>PARA ANTES DE TOCAR EM QUALQUER COISA.</strong><br>Liga imediatamente → PJ: <strong>289 889 850</strong></div>
+  <div class="fgrp"><label class="flabel">Equipa</label><select class="fselect" id="rp-team"></select></div>
+  <div class="fgrp"><label class="flabel">Localização exata</label><input class="finput" id="rp-loc" placeholder="Morada ou referência precisa"></div>
+  <div class="fgrp"><label class="flabel">O que foi encontrado</label><textarea class="ftextarea" id="rp-desc" placeholder="Descreve sem tocar..."></textarea></div>
+  <div class="fgrp"><label class="flabel">PJ contactada?</label><select class="fselect" id="rp-pj"><option value="yes">Sim – já a caminho</option><option value="no">Não – a ligar agora</option></select></div>
+  <div class="mactions"><button class="mbtn mbtn-ghost" onclick="closeModal('report')">Cancelar</button><button class="mbtn mbtn-danger" onclick="doReport()">Registar</button></div>
+</div></div>
+
+<script>
+const SC={pending:'#c8a800',active:'#2e6fb5',done:'#27a85a',flagged:'#d63c34'};
+const SL={pending:'Pendente',active:'Em curso',done:'Concluída',flagged:'SINALIZADA'};
+
+// Define time helpers first — used during initialisation
+function now(){return new Date().toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});}
+function nowFull(){const d=new Date();return d.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});}
+
+// ─── GRID ────────────────────────────────────────────────────────────────────
+// Three completely non-overlapping regions with hard geographic cutoffs.
+// Each region uses its own aligned grid so no cell crosses a boundary.
+//
+// CORE  – Faro/Olhão/Moncarapacho: lat 36.975–37.118, lng -7.980–-7.710  (1.4km cells)
+// MID   – 30-min ring:             everything else inside the mid box      (2.8km cells)
+//   West:  lng -8.190–-7.980
+//   East:  lng -7.710–-7.434
+//   North: lat 37.118–37.258, lng -7.980–-7.434
+// OUT   – outer fringe beyond mid box                                      (4.2km cells)
+//
+// Each tier's cell size is exactly 2× or 3× of 0.014°×0.018°
+// so tier edges always align to the same base grid.
+
+function makeGrid() {
+  const zones = [];
+  let id = 1;
+
+  // ONE cell size. Same as the core cells from before.
+  // 0.014° lat ≈ 1.55km, 0.018° lng ≈ 1.45km → ~2.25km² per cell
+  const DL = 0.014;
+  const DG = 0.018;
+
+  // Single grid origin – snapped so all cells align cleanly
+  const LAT0 = 36.974;
+  const LNG0 = -8.100;  // just west of Vale do Lobo/Almancil
+
+  // Covers: Vale do Lobo west → Tavira east, Faro south → São Brás north
+  // ~19 cols × 17 rows → 323 zones
+  const LAT1 = 37.212;  // São Brás de Alportel north
+  const LNG1 = -7.656;  // between Olhão and Tavira
+
+  // Priority by location
+  function getPriority(lat, lng) {
+    // High: core corridor Faro–Olhão–Moncarapacho
+    if (lat >= 36.974 && lat < 37.120 && lng >= -7.980 && lng < -7.710) return 'high';
+    // Mid: 30-min drive ring
+    if (lat >= 36.974 && lat < 37.260 && lng >= -8.190 && lng < -7.434) return 'mid';
+    // Outer fringe
+    return 'low';
+  }
+
+  // Named zones by approximate center – matched to nearest cell SW corner
+  const named = {};
+  function n(clat, clng, name, focus, p) {
+    // Find SW corner of cell containing this center
+    const row = Math.floor((clat - LAT0) / DL);
+    const col = Math.floor((clng - LNG0) / DG);
+    const key = `${row}_${col}`;
+    named[key] = { name, focus, p };
+  }
+
+  // High priority named zones
+  n(37.010, -7.944, 'Faro Este / saída N125',      'Último avistamento. Bermas N125, valas de drenagem, matagal.', 'high');
+  n(37.010, -7.926, 'Faro / N125 corredor W',       'Bermas e valetas N125 saída de Faro. Matagal, acessos secundários.', 'high');
+  n(37.024, -7.908, 'N125 corredor central',         'Troço central N125. Bermas, ribeiras, matagal denso.', 'high');
+  n(37.024, -7.890, 'N125 corredor E / Olhão W',    'N125 sector este. Acessos secundários, terrenos baldios.', 'high');
+  n(37.024, -7.854, 'Olhão Oeste',                  'Periferia oeste Olhão. Matagal, campos abandonados, linhas de água.', 'high');
+  n(37.024, -7.836, 'Olhão Centro / CARRO',         'ZONA DO CARRO. Fita-cola e casacos aqui. Verificar cada contentor e beco.', 'high');
+  n(37.024, -7.818, 'Olhão Este',                   'Periferia este Olhão. Campos agrícolas, ribeiras, acessos de terra.', 'high');
+  n(37.038, -7.854, 'Olhão Industrial Norte W',     'Industrial norte Olhão. Armazéns, estruturas abandonadas, vedações.', 'high');
+  n(37.038, -7.836, 'Olhão Industrial Norte E',     'Industrial nordeste Olhão. Armazéns, espaços vedados.', 'high');
+  n(37.038, -7.800, 'N398 corredor Olhão-Monc. S',  'N398 sector sul. Ribeiras, vegetação densa. Rota provável.', 'high');
+  n(37.052, -7.800, 'N398 corredor Olhão-Monc. N',  'N398 sector norte. Bermas, valetas, matagal lateral.', 'high');
+  n(37.066, -7.782, 'Moncarapacho laranjais Sul',   'Laranjais sul. Estruturas abandonadas, acessos rurais, valetas.', 'high');
+  n(37.066, -7.764, 'Moncarapacho SE',               'Zona rural SE. Ribeiras, matagal, culturas, estruturas isoladas.', 'high');
+  n(37.080, -7.782, 'Moncarapacho vila',             'PJ já pesquisou a casa. Quintas periféricas, armazéns rurais, poços.', 'high');
+  n(37.080, -7.764, 'Moncarapacho E / laranjais',   'Laranjais este. Bordas de campos, poços, ribeiras.', 'high');
+  n(37.094, -7.782, 'Moncarapacho laranjais Norte', 'Laranjais norte. Estruturas agrícolas, poços, ribeiras.', 'high');
+  n(37.094, -7.764, 'Moncarapacho NE laranjais',    'Laranjais NE. Acessos de terra, poços, armazéns de campo.', 'high');
+  // Mid priority named
+  n(37.024, -8.136, 'Vale do Lobo / Well',          'Ricardo trabalhava aqui. Restaurante Well e arredores. Acessos, matagal, pinheiro.', 'high');
+  n(37.038, -8.118, 'Almancil / Quinta do Lago',    'EN125 Almancil. Terrenos baldios, zona de transição, pinhais.', 'mid');
+  n(37.108, -7.926, 'Loulé Sul / EN125 Norte',      'Saída Loulé sul. Bermas, matagal, acessos à serra.', 'mid');
+  n(37.136, -7.908, 'São Brás de Alportel',         'São Brás. Serra do Caldeirão, eucaliptal, ribeiras, acessos florestais.', 'mid');
+  n(37.024, -7.674, 'Fuzeta / Ria Formosa Este',    'Fuzeta e costa. Matagal dunar, Ria Formosa periferia.', 'mid');
+  n(37.024, -7.638, 'EN125 Fuseta–Tavira W',        'EN125 sector oeste Fuseta–Tavira. Bermas, valetas, terrenos rurais.', 'mid');
+  n(37.024, -7.494, 'Tavira arredores',             'Periferia Tavira. Laranjais, quintas, ribeiras, estruturas rurais.', 'mid');
+
+  // Generate uniform grid
+  let row = 0;
+  for (let lat = LAT0; lat < LAT1 - 0.001; lat = +(lat + DL).toFixed(6), row++) {
+    let col = 0;
+    for (let lng = LNG0; lng < LNG1 - 0.001; lng = +(lng + DG).toFixed(6), col++) {
+      const key = `${row}_${col}`;
+      const hit = named[key];
+      const p = hit?.p || getPriority(lat, lng);
+      zones.push({
+        id: id++,
+        p,
+        name: hit?.name ? `Z${id-1} – ${hit.name}` : `Z${id-1}`,
+        focus: hit?.focus || 'Bermas, valetas, matagal, estruturas abandonadas, linhas de água.',
+        t: '3–4h',
+        status: 'pending', team: '', searches: [],
+        poly: [
+          [+(lat+DL).toFixed(6), lng],
+          [+(lat+DL).toFixed(6), +(lng+DG).toFixed(6)],
+          [lat, +(lng+DG).toFixed(6)],
+          [lat, lng]
+        ]
+      });
+    }
+  }
+
+  return zones;
+}
+
+let zones = makeGrid();
+// IDs already assigned sequentially in makeGrid
+zones.forEach((z,i) => { z.id = i+1; });
+
+let teams=[], logs=[{time:now(),text:`${zones.length} zonas carregadas. Usa o campo "Marcar em massa" para registar as zonas já pesquisadas.`,type:'normal'}];
+let selZone=null, layers={}, activeFilter='all';
+
+// MAP
+const map=L.map('map',{center:[37.090,-7.850],zoom:10});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(map);
+
+function mkMarker(lat,lng,em,bg,html){
+  return L.marker([lat,lng],{icon:L.divIcon({html:`<div style="background:${bg};color:white;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${em}</div>`,className:'',iconSize:[28,28],iconAnchor:[14,14]})}).addTo(map).bindPopup(html);
+}
+mkMarker(37.026,-7.841,'🚗','#d63c34','<div style="font-family:IBM Plex Mono,monospace;font-size:11px"><b style="color:#d63c34">CARRO ENCONTRADO</b><br><span style="color:#888">Olhão · 19 Mar · Fita-cola + casacos</span></div>');
+mkMarker(37.016,-7.935,'👤','#d4760a','<div style="font-family:IBM Plex Mono,monospace;font-size:11px"><b style="color:#d4760a">ÚLTIMO AVISTAMENTO</b><br><span style="color:#888">Faro · 13 Mar ~21h</span></div>');
+mkMarker(37.070,-7.787,'🔍','#7c3aed','<div style="font-family:IBM Plex Mono,monospace;font-size:11px"><b style="color:#7c3aed">PJ BUSCAS · MONCARAPACHO</b><br><span style="color:#888">Casa família pesquisada</span></div>');
+
+function renderLayers(){
+  Object.values(layers).forEach(l=>{try{map.removeLayer(l);}catch(e){}});
+  layers={};
+
+  // Render in one shot – Leaflet handles large polygon counts fine
+  // but we skip label rendering until zoom >= 13
+  zones.forEach(z=>{
+    if(!z.poly||!z.poly.length) return;
+    const c=SC[z.status], sel=z.id===selZone;
+    const alpha = z.status==='done' ? 0.06 : z.status==='pending' ? 0.12 : 0.22;
+    const poly=L.polygon(z.poly,{
+      color:c, fillColor:c,
+      fillOpacity: sel ? 0.32 : alpha,
+      weight: sel ? 2.5 : 1,
+      dashArray: z.status==='pending' ? '3,3' : null,
+      opacity: 0.8
+    }).addTo(map);
+
+    poly.bindPopup(()=>{
+      const d=document.createElement('div');
+      d.innerHTML=`
+        <div class="pu-name">${z.name}</div>
+        <div class="pu-meta">⏱ ${z.t} · ~2 km²</div>
+        <div class="pu-pri">${z.p==='high'?'<span style="color:#d63c34">🔴 Alta prioridade</span>':z.p==='mid'?'<span style="color:#c8a800">🟡 Média prioridade</span>':'<span style="color:#2e6fb5">🔵 Raio alargado</span>'}</div>
+        <div class="pu-focus">${z.focus}</div>
+        <div class="pu-btns">
+          <button class="pbtn pbtn-d" onclick="setS(${z.id},'done');map.closePopup()">✓ Concluída</button>
+          <button class="pbtn pbtn-a" onclick="setS(${z.id},'active');map.closePopup()">▶ Em curso</button>
+          <button class="pbtn pbtn-f" onclick="setS(${z.id},'flagged');map.closePopup()">⚠ Sinalizar</button>
+          <button class="pbtn pbtn-p" onclick="setS(${z.id},'pending');map.closePopup()">↺ Pendente</button>
+          ${(z.searches&&z.searches.length)?`<div style="width:100%;margin-top:6px;font-size:11px;color:#888;font-family:'IBM Plex Mono',monospace">Última pesquisa: ${z.searches[0].datetime}${z.searches[0].team?' · '+z.searches[0].team:''}</div>`:''}
+        </div>`;
+      return d;
+    },{maxWidth:280});
+
+    poly.on('click',()=>selZoneClick(z.id));
+    layers[z.id]=poly;
+  });
+
+  updateLabels();
+}
+
+// Single zoomend listener – registered once
+map.on('zoomend', updateLabels);
+
+function updateLabels(){
+  // Remove old labels
+  Object.keys(layers).filter(k=>k.startsWith('lbl')).forEach(k=>{
+    try{map.removeLayer(layers[k]);}catch(e){}
+    delete layers[k];
+  });
+  if(map.getZoom()<13) return;
+  zones.forEach(z=>{
+    if(!z.poly||!z.poly.length)return;
+    const c=SC[z.status];
+    const ctr=layers[z.id]?.getBounds()?.getCenter();
+    if(!ctr)return;
+    const lbl=L.marker(ctr,{
+      icon:L.divIcon({
+        html:`<div style="font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;color:${c};text-shadow:0 1px 2px rgba(255,255,255,0.9),0 0 4px rgba(255,255,255,0.7);pointer-events:none;white-space:nowrap">${z.id}</div>`,
+        className:'',iconSize:[20,12],iconAnchor:[10,6]
+      }),
+      interactive:false, zIndexOffset:-100
+    }).addTo(map);
+    layers[`lbl${z.id}`]=lbl;
+  });
+}
+
+function renderAll(redrawMap=false){renderStats();renderZoneList();renderTeamList();renderLog();if(redrawMap)renderLayers();populateSel();updateHeader();}
+
+function updateHeader(){
+  const done=zones.filter(z=>z.status==='done').length;
+  document.getElementById('header-sub').textContent=`${zones.length} zonas · ${done} concluídas · ~2km² cada`;
+}
+
+function renderStats(){
+  const c={pending:0,active:0,done:0,flagged:0};
+  zones.forEach(z=>c[z.status]++);
+  document.getElementById('sn-p').textContent=c.pending;
+  document.getElementById('sn-a').textContent=c.active;
+  document.getElementById('sn-d').textContent=c.done;
+  document.getElementById('sn-f').textContent=c.flagged;
+  const pct=zones.length?Math.round((c.done/zones.length)*100):0;
+  document.getElementById('prog-pct').textContent=pct+'%';
+  document.getElementById('prog-fill').style.width=pct+'%';
+}
+
+function renderZoneList(){
+  let filtered = activeFilter==='all' ? zones : zones.filter(z=>z.status===activeFilter);
+  const high=filtered.filter(z=>z.p==='high'), mid=filtered.filter(z=>z.p==='mid'), low=filtered.filter(z=>z.p==='low');
+  let h='';
+  if(high.length){h+=`<div class="sec-head red">● Alta prioridade (${high.length})</div>`;h+=high.map(zRow).join('');}
+  if(mid.length){h+=`<div class="sec-head yel">● Média prioridade – 30 min de Faro (${mid.length})</div>`;h+=mid.map(zRow).join('');}
+  if(low.length){h+=`<div class="sec-head blu">● Raio alargado (${low.length})</div>`;h+=low.map(zRow).join('');}
+  if(!h) h='<div class="empty-state">Nenhuma zona neste filtro.</div>';
+  document.getElementById('zone-list').innerHTML=h;
+
+  const panel=document.getElementById('zdp');
+  if(selZone){
+    const z=zones.find(x=>x.id===selZone);
+    if(z){
+      document.getElementById('zdp-title').textContent=z.name;
+      document.getElementById('zdp-focus').textContent=z.focus;
+      document.getElementById('zdp-actions').innerHTML=`
+        <button class="zdp-btn d" onclick="setS(${z.id},'done')">✓ Concluída</button>
+        <button class="zdp-btn a" onclick="setS(${z.id},'active')">▶ Em curso</button>
+        <button class="zdp-btn f" onclick="setS(${z.id},'flagged')">⚠ Sinalizar</button>
+        <button class="zdp-btn p" onclick="setS(${z.id},'pending')">↺ Pendente</button>`;
+      const hist=z.searches||[];
+      const hEl=document.getElementById('zdp-history');
+      const hList=document.getElementById('zdp-history-list');
+      if(hist.length){
+        hEl.style.display='block';
+        hList.innerHTML=hist.map(h=>`
+          <div class="zdp-history-item">
+            <div class="zdp-hi-time">${h.datetime}</div>
+            <div class="zdp-hi-body">
+              <span class="zdp-hi-status-${h.status}">${SL[h.status]}</span>
+              ${h.team?`<span class="zdp-hi-team"> · ${h.team}</span>`:''}
+              ${h.note?`<br><span style="color:var(--muted)">${h.note}</span>`:''}
+            </div>
+          </div>`).join('');
+      } else {
+        hEl.style.display='none';
+      }
+      panel.classList.add('open');
+    }
+  } else {
+    panel.classList.remove('open');
+    document.getElementById('zdp-history').style.display='none';
+  }
+}
+
+function zRow(z){
+  return`<div class="zone-item ${selZone===z.id?'sel':''}" onclick="selZoneClick(${z.id})">
+    <div class="zone-dot" style="background:${SC[z.status]}"></div>
+    <div class="zone-body">
+      <div class="zone-name">${z.name}</div>
+      <div class="zone-meta">${z.team||'Sem equipa'} · ${z.t}</div>
+    </div>
+    <div class="zbadge zb-${z.status}">${SL[z.status]}</div>
+  </div>`;
+}
+
+function renderTeamList(){
+  const el=document.getElementById('team-list');
+  if(!teams.length){el.innerHTML='<div class="empty-state">Nenhuma equipa registada.</div>';return;}
+  el.innerHTML=teams.map(t=>`<div class="team-item">
+    <div class="tavatar">${t.name.slice(-1)}</div>
+    <div class="tbody">
+      <div class="tname">${t.name} <span style="color:var(--muted);font-size:11px;font-weight:300">(${t.size})</span></div>
+      <div class="tzone">${t.zone||'Sem zona'} · ${t.lead}</div>
+    </div>
+    <div class="tcheckin ${isLate(t.lastCheckin)?'tc-late':'tc-ok'}">${t.lastCheckin||'–'}</div>
+  </div>`).join('');
+}
+
+function renderLog(){
+  const el=document.getElementById('log-list');
+  el.innerHTML=logs.slice(0,100).map(l=>`<div class="log-item"><div class="ltime">${l.time}</div><div class="ltext lt-${l.type}">${l.text}</div>${l.team?`<div class="lteam">${l.team}</div>`:''}</div>`).join('');
+}
+
+function populateSel(){
+  const tO=teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const zO=zones.map(z=>`<option value="${z.id}">${z.name}</option>`).join('');
+  ['ci-team','rp-team'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=tO||'<option value="">— adiciona equipas —</option>';});
+  const cz=document.getElementById('ci-zone');if(cz)cz.innerHTML=zO;
+  const tz=document.getElementById('t-zone');if(tz)tz.innerHTML='<option value="">— sem zona —</option>'+zO;
+}
+
+function setFilter(f){
+  activeFilter=f;
+  document.querySelectorAll('.fbtn').forEach(b=>{
+    b.classList.remove('active');
+    if(b.classList.contains(f==='active'?'active-f':f)) b.classList.add('active');
+  });
+  renderZoneList();
+}
+
+function selZoneClick(id){
+  selZone=id===selZone?null:id;
+  renderAll(true);
+  if(selZone){
+    const z=zones.find(x=>x.id===selZone);
+    if(z&&layers[z.id])map.fitBounds(layers[z.id].getBounds(),{padding:[80,80]});
+    if(window.innerWidth<=768){
+      document.querySelector('.sidebar').classList.remove('open');
+      document.getElementById('sidebar-toggle').textContent='☰ Zonas';
+    }
+  }
+}
+
+async function saveZoneState(z) {
+  if (!sb) return;
+  try {
+    await sb.from('zone_states').upsert({
+      id: z.id,
+      status: z.status,
+      team: z.team || '',
+      searches: z.searches,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  } catch(e) {
+    console.warn('saveZoneState error:', e.message);
+  }
+}
+
+function setS(id,status,teamName,datetime){
+  const z=zones.find(x=>x.id===id);if(!z)return;
+  const old=z.status;z.status=status;
+  if(!z.searches)z.searches=[];
+  const entry={status,team:teamName||'',datetime:datetime||nowFull(),note:''};
+  z.searches.unshift(entry);
+  const teamStr=teamName?` [${teamName}]`:'';
+  addLog(`${z.name}${teamStr}: ${SL[old]} → ${SL[status]}`,status==='flagged'?'flag':status==='done'?'ok':'normal',teamName);
+  renderAll(true);
+  saveZoneState(z);
+}
+
+function bulkSet(status){
+  const input=document.getElementById('bulk-input').value.trim();
+  if(!input)return;
+  const teamName=document.getElementById('bulk-team').value.trim();
+  const ids=input.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
+  if(!ids.length)return;
+  let count=0;
+  const dt=nowFull();
+  ids.forEach(id=>{
+    const z=zones.find(x=>x.id===id);
+    if(z){
+      if(!z.searches)z.searches=[];
+      z.searches.unshift({status,team:teamName,datetime:dt,note:''});
+      if(z.status!==status){z.status=status;count++;}
+      saveZoneState(z);
+    }
+  });
+  const teamStr=teamName?` [${teamName}]`:'';
+  addLog(`Massa${teamStr}: ${count} zonas → ${SL[status]} (${ids.join(',')})`,status==='done'?'ok':'normal',teamName);
+  document.getElementById('bulk-input').value='';
+  renderAll(true);
+}
+
+function addZone(){
+  const name=document.getElementById('z-name').value.trim();if(!name)return;
+  zones.push({id:zones.length+1,p:document.getElementById('z-pri').value,name,focus:document.getElementById('z-focus').value.trim()||'–',t:'3–4h',status:document.getElementById('z-status').value,team:'',searches:[],poly:[]});
+  addLog(`Nova zona: ${name}`,'normal');
+  closeModal('zone');
+  ['z-name','z-focus'].forEach(id=>document.getElementById(id).value='');
+  renderAll();
+}
+
+function addTeam(){
+  const name=document.getElementById('t-name').value.trim();if(!name)return;
+  const zid=parseInt(document.getElementById('t-zone').value);
+  const zone=zones.find(z=>z.id===zid);
+  if(zone&&zone.status==='pending'){zone.status='active';}
+  teams.push({id:Date.now(),name,lead:document.getElementById('t-lead').value.trim(),size:parseInt(document.getElementById('t-size').value)||3,zone:zone?.name||'',lastCheckin:now()});
+  addLog(`Equipa: ${name}${zone?' → '+zone.name:''}`,'normal');
+  closeModal('team');['t-name','t-lead','t-size'].forEach(id=>document.getElementById(id).value='');
+  renderAll();switchTab('teams');
+}
+
+function doCheckin(){
+  const team=teams.find(t=>t.id===parseInt(document.getElementById('ci-team').value));
+  const zone=zones.find(z=>z.id===parseInt(document.getElementById('ci-zone').value));
+  const status=document.getElementById('ci-status').value;
+  const notes=document.getElementById('ci-notes').value.trim();
+  const dateVal=document.getElementById('ci-date').value;
+  const dt=dateVal ? dateVal+' '+now() : nowFull();
+  if(team){team.lastCheckin=now();if(zone)team.zone=zone.name;}
+  if(zone){
+    zone.status=status;
+    if(!zone.searches)zone.searches=[];
+    zone.searches.unshift({status,team:team?.name||'',datetime:dt,note:notes});
+  }
+  const logTxt=`${team?.name||'?'} → ${zone?.name||'?'}: ${SL[status]}${notes?' · '+notes:''}`;
+  addLog(logTxt,status==='flagged'?'flag':status==='done'?'ok':'normal',team?.name);
+  closeModal('checkin');
+  document.getElementById('ci-notes').value='';
+  document.getElementById('ci-date').value='';
+  renderAll(true);
+}
+
+function doReport(){
+  const team=teams.find(t=>t.id===parseInt(document.getElementById('rp-team').value));
+  const loc=document.getElementById('rp-loc').value.trim();
+  const desc=document.getElementById('rp-desc').value.trim();
+  addLog(`⚠ OCORRÊNCIA – ${team?.name||'?'} em ${loc}: ${desc}`,'flag');
+  if(team?.zone){const z=zones.find(z=>z.name===team.zone);if(z)z.status='flagged';}
+  closeModal('report');
+  document.getElementById('rp-loc').value='';document.getElementById('rp-desc').value='';
+  alert('Ocorrência registada.\n\nPJ: 289 889 850\n\nNão toques em nada.');
+  renderAll(true);
+}
+
+function addLog(t,type,team){logs.unshift({time:now(),text:t,type,team:team||''});if(logs.length>200)logs.pop();}
+function isLate(t){if(!t)return false;const[h,m]=t.split(':').map(Number),d=new Date(),p=new Date();p.setHours(h,m,0);return(d-p)>40*60*1000;}
+function switchTab(n){const ns=['zones','teams','log','info'];document.querySelectorAll('.stab').forEach((t,i)=>t.classList.toggle('active',ns[i]===n));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');}
+function openModal(n){populateSel();document.getElementById('modal-'+n).classList.add('open');}
+function closeModal(n){document.getElementById('modal-'+n).classList.remove('open');}
+function copyText(t,b){navigator.clipboard.writeText(t).then(()=>{if(b){const o=b.textContent;b.textContent='✓';setTimeout(()=>b.textContent=o,1500);}});}
+function copyTemplate(){navigator.clipboard.writeText(`Equipa [NOME], Zona [X]\nEstado: [em curso/concluída/algo encontrado]\nPróxima zona: [Y]\nHora: ${now()}\nObs: –`).then(()=>alert('Copiado!'));}
+
+function toggleSidebar() {
+  const s = document.querySelector('.sidebar');
+  s.classList.toggle('open');
+  const btn = document.getElementById('sidebar-toggle');
+  btn.textContent = s.classList.contains('open') ? '✕ Fechar' : '☰ Zonas';
+}
+
+function exportCSV() {
+  const headers = ['ID','Nome','Prioridade','Estado','Equipa','Ultima_pesquisa','Historico'];
+  const rows = zones.map(z => {
+    const last = z.searches.length ? z.searches[0] : null;
+    const hist = z.searches.map(s =>
+      `${s.datetime}|${s.status}|${s.team}`
+    ).join(' // ');
+    return [
+      z.id,
+      `"${z.name.replace(/"/g, '""')}"`,
+      z.p,
+      z.status,
+      `"${(z.team||'').replace(/"/g,'""')}"`,
+      last ? `"${last.datetime}"` : '',
+      `"${hist.replace(/"/g,'""')}"`
+    ].join(',');
+  });
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `busca-ricardo-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  addLog('CSV exportado', 'ok');
+}
+
+document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');}));
+
+renderAll(false);
+setTimeout(()=>renderLayers(), 150);
+</script>
+
+<!-- MODE SELECT SCREEN -->
+<div id="mode-screen">
+  <div class="mode-title">Busca Ricardo Claro</div>
+  <div class="mode-sub">Como estás a aceder a esta aplicação?</div>
+  <button class="mode-btn coord" onclick="selectMode('coordinator')">
+    <div class="mode-btn-title">🟠 Coordenador</div>
+    <div class="mode-btn-desc">Vejo todas as zonas, equipas e localização em tempo real de todos os elementos.</div>
+  </button>
+  <button class="mode-btn searcher" onclick="selectMode('searcher')">
+    <div class="mode-btn-title">🔵 Elemento de busca</div>
+    <div class="mode-btn-desc">Estou no terreno. Partilho a minha localização com o coordenador.</div>
+  </button>
+  <input class="mode-name-input" id="mode-name-input" placeholder="O teu nome (ex: João Silva)" maxlength="30" />
+  <button class="mode-confirm-btn" id="mode-confirm-btn" onclick="confirmSearcher()">Começar a partilhar localização →</button>
+</div>
+
+<!-- LIVE TRACKER PANEL (coordinator only) -->
+<div id="tracker-panel">
+  <div class="tp-title">
+    <span>Elementos no terreno</span>
+    <span class="tp-dot"></span>
+  </div>
+  <div id="tp-list"><div class="tp-empty">Nenhum elemento ativo</div></div>
+</div>
+
+<!-- SEARCHER GPS STATUS BAR -->
+<div id="gps-bar">🔴 A partilhar localização...</div>
+
+<script>
+// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
+// FREE Supabase project for live location sync
+// You need to create a free Supabase project and replace these values.
+// Instructions are shown in the app after selecting coordinator mode.
+const SUPABASE_URL = 'https://mzxgsjfweyigwxzjhcmo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rQgW2nA1RN253MQMCxZZBQ_rSKWPlDm';
+
+let sb = null;
+try {
+  if (SUPABASE_URL !== 'REPLACE_WITH_YOUR_SUPABASE_URL') {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch(e) { console.warn('Supabase not configured', e); }
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let appMode = null; // 'coordinator' | 'searcher'
+let myName = '';
+let gpsInterval = null;
+let trackerInterval = null;
+let liveMarkers = {}; // name -> leaflet marker
+
+// Distinct colors for up to 20 people
+const PERSON_COLORS = [
+  '#e63946','#2a9d8f','#e9c46a','#264653','#f4a261',
+  '#6a4c93','#1982c4','#8ac926','#ff595e','#6a994e',
+  '#bc4749','#457b9d','#e76f51','#2d6a4f','#f72585',
+  '#4361ee','#7209b7','#3a0ca3','#560bad','#480ca8'
+];
+const colorFor = (name) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash<<5)-hash);
+  return PERSON_COLORS[Math.abs(hash) % PERSON_COLORS.length];
+};
+
+async function loadZoneStates() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('zone_states').select('*');
+    if (error) throw error;
+    (data || []).forEach(row => {
+      const z = zones.find(x => x.id === row.id);
+      if (!z) return;
+      z.status = row.status;
+      z.team = row.team || '';
+      z.searches = row.searches || [];
+    });
+    renderAll(true);
+    addLog(`Estado das zonas carregado (${data.length} registos)`, 'ok');
+  } catch(e) {
+    console.warn('loadZoneStates error:', e);
+  }
+}
+
+function subscribeToZoneChanges() {
+  if (!sb) return;
+  sb.channel('zone_states_changes')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'zone_states' },
+      payload => {
+        const row = payload.new;
+        if (!row) return;
+        const z = zones.find(x => x.id === row.id);
+        if (!z) return;
+        z.status = row.status;
+        z.team = row.team || '';
+        z.searches = row.searches || [];
+        renderAll(true);
+      }
+    )
+    .subscribe();
+}
+
+// ─── MODE SELECTION ───────────────────────────────────────────────────────────
+function selectMode(mode) {
+  if (mode === 'coordinator') {
+    appMode = 'coordinator';
+    document.getElementById('mode-screen').style.display = 'none';
+    if (!sb) showSupabaseSetup();
+    else startCoordinator();
+  } else {
+    // Show name input
+    document.querySelector('.mode-btn.coord').style.display = 'none';
+    document.querySelector('.mode-btn.searcher').style.display = 'none';
+    document.querySelector('.mode-sub').textContent = 'Qual é o teu nome?';
+    document.getElementById('mode-name-input').style.display = 'block';
+    document.getElementById('mode-confirm-btn').style.display = 'block';
+    document.getElementById('mode-name-input').focus();
+  }
+}
+
+function confirmSearcher() {
+  const name = document.getElementById('mode-name-input').value.trim();
+  if (!name) { alert('Escreve o teu nome primeiro.'); return; }
+  myName = name;
+  appMode = 'searcher';
+  document.getElementById('mode-screen').style.display = 'none';
+  startSearcher();
+}
+
+// Allow Enter key on name input
+document.getElementById('mode-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmSearcher();
+});
+
+// ─── COORDINATOR MODE ─────────────────────────────────────────────────────────
+function startCoordinator() {
+  document.getElementById('tracker-panel').style.display = 'block';
+  // Add coordinator button to header
+  const btn = document.createElement('button');
+  btn.className = 'hbtn';
+  btn.id = 'coord-refresh-btn';
+  btn.textContent = '🟢 0 ativos';
+  btn.style.color = 'var(--green)';
+  btn.style.borderColor = 'rgba(39,168,90,0.4)';
+  btn.onclick = fetchLocations;
+  document.querySelector('.header-right').prepend(btn);
+
+  fetchLocations();
+  loadZoneStates();
+  subscribeToZoneChanges();
+  trackerInterval = setInterval(fetchLocations, 15000); // refresh every 15s
+}
+
+async function fetchLocations() {
+  if (!sb) return;
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString(); // last 5 min
+    const { data, error } = await sb
+      .from('locations')
+      .select('*')
+      .gte('updated_at', cutoff)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Deduplicate – keep only latest per name
+    const latest = {};
+    (data || []).forEach(row => {
+      if (!latest[row.name]) latest[row.name] = row;
+    });
+
+    updateTrackerPanel(Object.values(latest));
+    updateLiveMarkers(Object.values(latest));
+
+    const btn = document.getElementById('coord-refresh-btn');
+    if (btn) btn.textContent = `🟢 ${Object.keys(latest).length} ativos`;
+  } catch(e) {
+    console.error('fetchLocations error', e);
+  }
+}
+
+function updateTrackerPanel(people) {
+  const list = document.getElementById('tp-list');
+  if (!people.length) {
+    list.innerHTML = '<div class="tp-empty">Nenhum elemento ativo</div>';
+    return;
+  }
+  list.innerHTML = people.map(p => {
+    const color = colorFor(p.name);
+    const t = new Date(p.updated_at);
+    const timeStr = t.toLocaleTimeString('pt-PT', {hour:'2-digit', minute:'2-digit'});
+    const initials = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    return `<div class="tp-person">
+      <div class="tp-avatar" style="background:${color}">${initials}</div>
+      <div class="tp-name">${p.name}</div>
+      <div class="tp-time">${timeStr}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateLiveMarkers(people) {
+  // Remove stale markers
+  Object.keys(liveMarkers).forEach(name => {
+    if (!people.find(p => p.name === name)) {
+      map.removeLayer(liveMarkers[name]);
+      delete liveMarkers[name];
+    }
+  });
+
+  people.forEach(p => {
+    const color = colorFor(p.name);
+    const initials = p.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const iconHtml = `<div style="
+      background:${color};color:white;font-size:10px;font-weight:700;
+      width:28px;height:28px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      font-family:'IBM Plex Mono',monospace;">${initials}</div>`;
+
+    const icon = L.divIcon({ html: iconHtml, className:'', iconSize:[28,28], iconAnchor:[14,14] });
+
+    if (liveMarkers[p.name]) {
+      liveMarkers[p.name].setLatLng([p.lat, p.lng]);
+      liveMarkers[p.name].setIcon(icon);
+    } else {
+      const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: 1000 })
+        .addTo(map)
+        .bindPopup(`<div style="font-family:'IBM Plex Mono',monospace;font-size:11px">
+          <b style="color:${color}">${p.name}</b><br>
+          <span style="color:#888">Última posição: ${new Date(p.updated_at).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>`);
+      liveMarkers[p.name] = marker;
+    }
+  });
+}
+
+// ─── SEARCHER MODE ────────────────────────────────────────────────────────────
+function startSearcher() {
+  const bar = document.getElementById('gps-bar');
+  bar.style.display = 'block';
+  bar.textContent = `🔴 ${myName} – a obter localização...`;
+
+  if (!sb) {
+    bar.textContent = '⚠ Supabase não configurado – localização não está a ser partilhada';
+    bar.style.background = '#c8a800';
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    bar.textContent = '⚠ Este browser não suporta GPS';
+    bar.style.background = 'var(--red)';
+    return;
+  }
+
+  sendLocation(); // immediate first ping
+  gpsInterval = setInterval(sendLocation, 30000); // then every 30s
+}
+
+async function sendLocation() {
+  const bar = document.getElementById('gps-bar');
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    try {
+      await sb.from('locations').upsert({
+        name: myName,
+        lat, lng,
+        accuracy: Math.round(accuracy),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'name' });
+
+      bar.className = 'active';
+      bar.style.display = 'block';
+      const t = new Date().toLocaleTimeString('pt-PT', {hour:'2-digit', minute:'2-digit'});
+      bar.textContent = `✓ ${myName} – localização partilhada às ${t} (precisão: ${Math.round(accuracy)}m)`;
+    } catch(e) {
+      bar.style.background = '#c8a800';
+      bar.textContent = `⚠ Erro ao partilhar localização: ${e.message}`;
+    }
+  }, (err) => {
+    bar.style.background = 'var(--red)';
+    bar.textContent = `⚠ GPS: ${err.message}. Verifica as permissões do browser.`;
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+// ─── SUPABASE SETUP GUIDE ─────────────────────────────────────────────────────
+function showSupabaseSetup() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:8000;
+    display:flex;align-items:center;justify-content:center;padding:20px;`;
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:8px;padding:28px;max-width:480px;width:100%;font-family:'IBM Plex Sans',sans-serif;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#d4760a;margin-bottom:16px;">
+        Configurar Supabase (1 vez, 5 min)
+      </div>
+      <div style="font-size:13px;line-height:1.7;color:#444;margin-bottom:16px;">
+        Para o tracking em tempo real precisas de uma base de dados gratuita.<br><br>
+        <b>1.</b> Vai a <a href="https://supabase.com" target="_blank" style="color:#2e6fb5">supabase.com</a> → Sign up grátis<br>
+        <b>2.</b> Cria um novo projeto (nome qualquer, região: <b>West EU</b>)<br>
+        <b>3.</b> No painel do projeto vai a <b>Settings → API</b><br>
+        <b>4.</b> Copia a <b>Project URL</b> e a <b>anon public key</b><br>
+        <b>5.</b> Vai a <b>SQL Editor</b> e corre este comando:<br>
+      </div>
+      <div style="background:#f5f5f3;border:1px solid #e0e0dc;border-radius:4px;padding:10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#444;margin-bottom:16px;white-space:pre-wrap;">CREATE TABLE locations (
+  name text PRIMARY KEY,
+  lat float8,
+  lng float8,
+  accuracy int4,
+  updated_at timestamptz
+);
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public_access" ON locations
+  FOR ALL USING (true) WITH CHECK (true);</div>
+      <div style="font-size:13px;line-height:1.7;color:#444;margin-bottom:16px;">
+        <b>6.</b> Abre o ficheiro <b>index.html</b> num editor de texto<br>
+        <b>7.</b> Substitui <code style="background:#f5f5f3;padding:1px 4px;border-radius:2px">REPLACE_WITH_YOUR_SUPABASE_URL</code> e <code style="background:#f5f5f3;padding:1px 4px;border-radius:2px">REPLACE_WITH_YOUR_SUPABASE_ANON_KEY</code> pelos valores copiados<br>
+        <b>8.</b> Faz upload do ficheiro atualizado para o Netlify
+      </div>
+      <button onclick="this.closest('div[style]').remove();startCoordinator();" style="
+        background:#d4760a;color:white;border:none;border-radius:4px;
+        padding:10px 20px;font-family:'IBM Plex Mono',monospace;font-size:11px;
+        font-weight:600;cursor:pointer;letter-spacing:0.06em;">
+        Já configurei – continuar →
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ─── CLEANUP ──────────────────────────────────────────────────────────────────
+window.addEventListener('beforeunload', () => {
+  if (gpsInterval) clearInterval(gpsInterval);
+  if (trackerInterval) clearInterval(trackerInterval);
+});
+</script>
+</body>
+</html>
