@@ -257,12 +257,17 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 }
 /* ─── PESSOAS TABLE ───────────────────────────────────────────────────────── */
 .ptable-wrap { overflow-x: auto; flex: 1; }
-.ptable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ptable { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.ptable col.col-name { width: 25%; }
+.ptable col.col-phone { width: 23%; }
+.ptable col.col-team { width: 22%; }
+.ptable col.col-zone { width: 22%; }
+.ptable col.col-del { width: 8%; }
 .ptable th { font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--border); text-align: left; background: var(--surface2); position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
 .ptable th:hover { color: var(--text); }
 .ptable th .sort-arrow { margin-left: 3px; opacity: 0.4; }
 .ptable th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
-.ptable td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.ptable td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ptable tr:hover td { background: var(--surface2); }
 .ptable tr.add-row-inline td { background: var(--surface2); padding: 4px 6px; }
 .ptable .cell-name { font-weight: 500; }
@@ -414,6 +419,9 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
       </div>
       <div class="ptable-wrap">
         <table class="ptable">
+          <colgroup>
+            <col class="col-name"><col class="col-phone"><col class="col-team"><col class="col-zone"><col class="col-del">
+          </colgroup>
           <thead>
             <tr>
               <th onclick="ptSort('name')">Nome <span class="sort-arrow" id="sa-name">&#8597;</span></th>
