@@ -258,11 +258,11 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 /* ─── PESSOAS TABLE ───────────────────────────────────────────────────────── */
 .ptable-wrap { overflow-x: auto; flex: 1; }
 .ptable { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.ptable col.col-name { width: 25%; }
-.ptable col.col-phone { width: 23%; }
-.ptable col.col-team { width: 22%; }
-.ptable col.col-zone { width: 22%; }
-.ptable col.col-del { width: 8%; }
+.ptable col.col-name { width: 24%; }
+.ptable col.col-phone { width: 22%; }
+.ptable col.col-team { width: 21%; }
+.ptable col.col-zone { width: 21%; }
+.ptable col.col-del { width: 12%; }
 .ptable th { font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--border); text-align: left; background: var(--surface2); position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
 .ptable th:hover { color: var(--text); }
 .ptable th .sort-arrow { margin-left: 3px; opacity: 0.4; }
@@ -277,6 +277,9 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .ptable .cell-del { text-align: center; width: 28px; }
 .ptable .pdel { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 1px 3px; }
 .ptable .pdel:hover { color: var(--red); }
+.ptable .cell-editable { cursor: text; }
+.ptable .cell-editable:hover { background: rgba(212,118,10,0.06); }
+.ptable .cell-editing input { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; border: 1px solid var(--accent); border-radius: 2px; padding: 2px 5px; background: var(--surface); color: var(--text); width: 100%; outline: none; }
 .pt-badge-team { display: inline-block; background: rgba(212,118,10,0.1); border: 1px solid rgba(212,118,10,0.25); color: var(--accent); border-radius: 2px; padding: 1px 6px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; }
 .pt-badge-zone { display: inline-block; background: rgba(200,168,0,0.08); border: 1px solid rgba(200,168,0,0.3); color: var(--yellow); border-radius: 2px; padding: 1px 6px; font-size: 10px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; }
 .pt-badge-zone.done { background: rgba(39,168,90,0.08); border-color: rgba(39,168,90,0.3); color: var(--green); }
@@ -881,15 +884,38 @@ function renderPeopleTable(){
     const zdone=z&&z.status==='done';
     const zbadge=z?`<span class="pt-badge-zone${zdone?' done':''}" onclick="ptPickZone(${p.id})" title="Clica para mudar">${zname}</span>`
                    :`<span class="pt-badge-zone empty" onclick="ptPickZone(${p.id})" title="Atribuir zona">+ zona</span>`;
-    const tbadge=p.team?`<span class="pt-badge-team">${p.team}</span>`:'<span style="color:var(--muted);font-size:11px">—</span>';
     return`<tr>
-      <td class="cell-name">${p.name}</td>
-      <td class="cell-phone">${p.phone||'—'}</td>
-      <td class="cell-team">${tbadge}</td>
+      <td class="cell-name cell-editable" onclick="ptEditCell(this,${p.id},'name')" title="Clica para editar">${p.name}</td>
+      <td class="cell-phone cell-editable" onclick="ptEditCell(this,${p.id},'phone')" title="Clica para editar">${p.phone||'—'}</td>
+      <td class="cell-team cell-editable" onclick="ptEditCell(this,${p.id},'team')" title="Clica para editar">${p.team||'—'}</td>
       <td class="cell-zone">${zbadge}</td>
       <td class="cell-del"><button class="pdel" onclick="deletePerson(${p.id})" title="Remover">×</button></td>
     </tr>`;
   }).join('');
+}
+
+function ptEditCell(td, pid, field){
+  if(td.classList.contains('cell-editing'))return;
+  const p=people.find(x=>x.id===pid);if(!p)return;
+  const cur=field==='phone'?(p.phone||''):field==='team'?(p.team||''):p.name;
+  td.classList.add('cell-editing');
+  const inp=document.createElement('input');
+  inp.value=cur==='—'?'':cur;
+  if(field==='team'){inp.setAttribute('list','pt-team-list');}
+  if(field==='phone'){inp.type='tel';}
+  td.textContent='';
+  td.appendChild(inp);
+  inp.focus();inp.select();
+  function save(){
+    const val=inp.value.trim();
+    if(field==='name'&&!val){td.classList.remove('cell-editing');renderPeopleTable();return;}
+    if(field==='name')p.name=val;
+    else if(field==='phone')p.phone=val||null;
+    else if(field==='team')p.team=val||null;
+    savePeople();renderPeopleTable();
+  }
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){inp.removeEventListener('blur',save);save();}if(e.key==='Escape'){td.classList.remove('cell-editing');renderPeopleTable();}});
 }
 
 function ptAddKeydown(e){if(e.key==='Enter')ptAddPerson();}
