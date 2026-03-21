@@ -307,6 +307,14 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
         <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
       </div>
 
+      <!-- UMAP REFERENCE LAYER BAR -->
+      <div class="umap-bar">
+        <span class="umap-bar-label">Mapa Ref</span>
+        <input type="checkbox" id="umap-toggle" checked onchange="if(umapLayer){this.checked?map.addLayer(umapLayer):map.removeLayer(umapLayer);}">
+        <span class="umap-bar-status" id="umap-status">a carregar...</span>
+        <button class="umap-bar-refresh" onclick="loadUmapLayer()" title="Actualizar agora">↻</button>
+      </div>
+
       <!-- BULK UPDATE -->
       <div class="bulk-panel">
         <div class="bulk-label">Marcar zonas em massa</div>
