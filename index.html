@@ -925,8 +925,8 @@ async function loadUmapLayer() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const raw = await res.text();
     if (raw === lastUmapData) return; // no change since last fetch
-    lastUmapData = raw;
     const geojson = JSON.parse(raw);
+    lastUmapData = raw;
     if (umapLayer) map.removeLayer(umapLayer);
     umapLayer = L.geoJSON(geojson, {
       style: { color: '#2e6fb5', weight: 2, opacity: 0.7, fillOpacity: 0.12 },
