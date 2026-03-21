@@ -257,6 +257,13 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
   .sidebar.open { left: 0; }
   #map { width: 100vw; }
 }
+/* ─── UMAP REFERENCE BAR ──────────────────────────────────────────────────── */
+.umap-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.umap-bar-label{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--blue);font-weight:600;}
+.umap-bar-status{flex:1;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);}
+.umap-bar-refresh{background:transparent;border:1px solid var(--border);border-radius:2px;padding:2px 6px;cursor:pointer;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10px;}
+.umap-bar-refresh:hover{border-color:var(--blue);color:var(--blue);}
+
 </style>
 </head>
 <body>
