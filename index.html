@@ -443,7 +443,10 @@ Obs: –</div>
 const SC={pending:'#c8a800',active:'#2e6fb5',done:'#27a85a',flagged:'#d63c34'};
 const SL={pending:'Pendente',active:'Em curso',done:'Concluída',flagged:'SINALIZADA'};
 // ─── UMAP REFERENCE LAYER ─────────────────────────────────────────────────────
-const UMAP_URL = 'https://umap.openstreetmap.fr/en/datalayer/1379403/e0c5c3aa-50ae-41bd-b024-a5102ef8b10f/';
+const UMAP_URLS = [
+  'https://umap.openstreetmap.fr/en/datalayer/1379403/e0c5c3aa-50ae-41bd-b024-a5102ef8b10f/', // Pesquisado
+  'https://umap.openstreetmap.fr/en/datalayer/1379403/8c7289c8-3bfe-4374-9f23-f1b36971b2e7/', // Layer 2
+];
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 let umapLayer = null;
 let lastUmapData = null;
@@ -918,39 +921,43 @@ function exportCSV() {
 }
 
 // ─── UMAP FETCH ───────────────────────────────────────────────────────────────
-async function loadUmapLayer() {
-  const statusEl = document.getElementById('umap-status');
+async function fetchOneLayer(url) {
   const proxies = [
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?url=',
   ];
+  let res, lastErr;
+  for (const proxy of proxies) {
+    try {
+      res = await fetch(proxy + encodeURIComponent(url));
+      if (res.ok) break;
+    } catch(e) { lastErr = e; res = null; }
+  }
+  if (!res || !res.ok) throw lastErr || new Error('all proxies failed');
+  return res.text();
+}
+
+async function loadUmapLayer() {
+  const statusEl = document.getElementById('umap-status');
   try {
-    let res, lastErr;
-    for (const proxy of proxies) {
-      try {
-        res = await fetch(proxy + encodeURIComponent(UMAP_URL));
-        if (res.ok) break;
-      } catch(e) { lastErr = e; res = null; }
-    }
-    if (!res || !res.ok) throw lastErr || new Error('all proxies failed');
-    const raw = await res.text();
-    if (raw === lastUmapData) return; // no change since last fetch
-    const geojson = JSON.parse(raw);
-    lastUmapData = raw;
+    const raws = await Promise.all(UMAP_URLS.map(fetchOneLayer));
+    const combined = raws.join('||');
+    if (combined === lastUmapData) return; // no change since last fetch
+    lastUmapData = combined;
+    const features = raws.flatMap(raw => JSON.parse(raw).features || []);
     if (umapLayer) map.removeLayer(umapLayer);
-    umapLayer = L.geoJSON(geojson, {
+    umapLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
       style: { color: '#2e6fb5', weight: 2, opacity: 0.7, fillOpacity: 0.12 },
       onEachFeature: (f, layer) => {
         const name = f.properties && f.properties.name ? f.properties.name : '';
         const type = f.geometry.type === 'LineString' ? 'Percurso' : 'Área';
-        layer.bindPopup(`<div class="pu-name">${name || type}</div><div class="pu-meta">${type} · uMap Pesquisado</div>`);
+        layer.bindPopup(`<div class="pu-name">${name || type}</div><div class="pu-meta">${type} · uMap</div>`);
       }
     });
     const toggle = document.getElementById('umap-toggle');
     if (!toggle || toggle.checked) map.addLayer(umapLayer);
     if (statusEl) statusEl.textContent = 'actualizado às ' + now();
   } catch(e) {
-    // On first load failure: silent (no prior data). On subsequent: show error.
     if (statusEl && lastUmapData !== null) {
       statusEl.innerHTML = '<span style="color:var(--red)">erro ao carregar</span>';
     }
