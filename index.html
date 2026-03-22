@@ -1400,34 +1400,37 @@ function subscribeToZoneChanges() {
 async function saveLogDb(entry) {
   if (!sb) return;
   try {
-    await sb.from('activity_logs').upsert({
+    const { error } = await sb.from('activity_logs').upsert({
       id: entry.id,
       time: entry.time,
       text: entry.text,
       type: entry.type,
       team: entry.team
     });
+    if (error) throw error;
   } catch(e) { console.warn('saveLogDb error:', e.message); }
 }
 
 async function loadLogs() {
   if (!sb) return;
   try {
-    const { data, error } = await sb.from('activity_logs').select('*').order('id', { ascending: false });
+    const { data, error } = await sb.from('activity_logs').select('*').order('id', { ascending: false }).limit(200);
     if (error) throw error;
     if (!data || !data.length) return;
     const existing = new Set(logs.filter(l => l.id).map(l => l.id));
+    const merged = [...logs];
     for (const row of data) {
-      if (!existing.has(row.id)) logs.push({ id: row.id, time: row.time, text: row.text, type: row.type, team: row.team });
+      if (!existing.has(row.id)) merged.push({ id: row.id, time: row.time, text: row.text, type: row.type, team: row.team });
     }
-    logs.sort((a, b) => (b.id || 0) - (a.id || 0));
+    merged.sort((a, b) => (b.id || 0) - (a.id || 0));
+    logs = merged.slice(0, 200);
     renderLog();
   } catch(e) { console.warn('loadLogs error:', e.message); }
 }
 
 function subscribeToLogChanges() {
   if (!sb) return;
-  sb.channel('activity_logs')
+  sb.channel('activity_logs_changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_logs' }, payload => {
       const row = payload.new;
       if (!logs.find(l => l.id === row.id)) {
