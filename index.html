@@ -762,8 +762,11 @@ function renderZoneList(){
     if(z){
       document.getElementById('zdp-title').textContent=z.name;
       document.getElementById('zdp-focus').textContent=z.focus+(z.team?` · Equipa: ${z.team}`:'');
+      const assignedPerson=people.find(p=>p.zone===z.id);
+      const reassignBtn=assignedPerson?`<button class="zdp-btn a" onclick="markDoneAndReassign(${z.id})">✓ Vista + Nova zona</button>`:'';
       document.getElementById('zdp-actions').innerHTML=`
         <button class="zdp-btn d" onclick="setS(${z.id},'done')">✓ Vista</button>
+        ${reassignBtn}
         <button class="zdp-btn p" onclick="setS(${z.id},'pending')">↺ Por ver</button>`;
 
       // Assign panel
@@ -906,20 +909,40 @@ function ptEditCell(td, pid, field){
   const p=people.find(x=>x.id===pid);if(!p)return;
   const cur=field==='phone'?(p.phone||''):field==='team'?(p.team||''):p.name;
   td.classList.add('cell-editing');
+
+  if(field==='team'){
+    const teamNames=[...new Set([
+      ...teams.map(t=>t.name||'').filter(Boolean),
+      ...people.map(x=>x.team||'').filter(Boolean)
+    ])].sort();
+    const sel=document.createElement('select');
+    sel.className='pt-inline-select';
+    sel.innerHTML='<option value="">— sem equipa —</option>'+teamNames.map(t=>`<option value="${t}"${t===cur?' selected':''}>${t}</option>`).join('');
+    td.textContent='';
+    td.appendChild(sel);
+    sel.focus();
+    function saveTeam(){
+      const val=sel.value;
+      p.team=val||null;
+      savePeople();savePersonDb(p);renderPeopleTable();
+    }
+    sel.addEventListener('blur',saveTeam);
+    sel.addEventListener('change',()=>{sel.removeEventListener('blur',saveTeam);saveTeam();});
+    sel.addEventListener('keydown',e=>{if(e.key==='Escape'){td.classList.remove('cell-editing');renderPeopleTable();}});
+    return;
+  }
+
   const inp=document.createElement('input');
   inp.value=cur==='—'?'':cur;
-  if(field==='team'){inp.setAttribute('list','pt-team-list');}
   if(field==='phone'){inp.type='tel';}
   td.textContent='';
   td.appendChild(inp);
   inp.focus();inp.select();
-  if(field==='team')inp.dispatchEvent(new Event('input'));
   function save(){
     const val=inp.value.trim();
     if(field==='name'&&!val){td.classList.remove('cell-editing');renderPeopleTable();return;}
     if(field==='name')p.name=val;
     else if(field==='phone')p.phone=val||null;
-    else if(field==='team')p.team=val||null;
     savePeople();savePersonDb(p);renderPeopleTable();
   }
   inp.addEventListener('blur',save);
@@ -933,7 +956,7 @@ function ptAddPerson(){
   const phone=document.getElementById('pt-new-phone').value.trim();
   const team=document.getElementById('pt-new-team').value.trim();
   const zid=parseInt(document.getElementById('pt-new-zone').value)||null;
-  const p={id:Date.now(),name,phone,team,zone:zid||null};
+  const p={id:Date.now(),name,phone:phone||null,team:team||null,zone:zid||null};
   people.push(p);
   // If zone assigned, mark as assigned on the zone
   if(zid){
@@ -968,6 +991,7 @@ function ptSetZone(pid, val){
       if(!z.searches)z.searches=[];
       z.searches.unshift({status:'assigned',team:p.team||p.name,members:[p.name],datetime:nowFull(),note:''});
       saveZoneState(z);
+      addLog(`${z.name} → Atribuída (${p.team||p.name})`, 'normal', p.team||'');
     }
   }
   savePeople();savePersonDb(p);renderPeopleTable();renderAll(true);
@@ -1110,6 +1134,50 @@ function assignPersonToZone(){
   renderAll(true);
 }
 
+
+function markDoneAndReassign(zid){
+  const z=zones.find(x=>x.id===zid);if(!z)return;
+  const person=people.find(p=>p.zone===zid);
+
+  // Mark current zone done
+  z.status='done';z.team='';
+  if(!z.searches)z.searches=[];
+  z.searches.unshift({status:'done',team:person?.team||person?.name||'',members:person?[person.name]:[],datetime:nowFull(),note:''});
+  saveZoneState(z);
+  addLog(`${z.name} → Vista${person?' ('+( person.team||person.name)+')':''}`, 'ok', person?.team||'');
+
+  // Free the person from this zone
+  if(person){ person.zone=null; savePeople(); savePersonDb(person); }
+
+  renderAll(true);
+
+  // Pick next zone
+  const pending=zones.filter(x=>x.status==='pending').sort((a,b)=>{
+    const pri={high:0,mid:1,low:2};return(pri[a.p]??1)-(pri[b.p]??1);
+  });
+  if(!pending.length){alert('Sem zonas por ver disponíveis.');return;}
+
+  const opts=pending.map(x=>`${x.id}: ${x.name} (${x.p})`).join('\n');
+  const input=prompt(`${person?person.name+' — ':''}Próxima zona (número):\n\n${opts}`);
+  if(!input)return;
+  const nzid=parseInt(input);
+  const nz=zones.find(x=>x.id===nzid);
+  if(!nz){alert('Zona não encontrada.');return;}
+
+  if(person){
+    person.zone=nz.id;
+    savePeople();savePersonDb(person);
+  }
+  nz.status='assigned';
+  nz.team=person?.team||person?.name||'';
+  if(!nz.searches)nz.searches=[];
+  nz.searches.unshift({status:'assigned',team:nz.team,members:person?[person.name]:[],datetime:nowFull(),note:''});
+  saveZoneState(nz);
+  addLog(`${nz.name} → Atribuída${person?' a '+(person.team||person.name):''}`, 'normal', nz.team);
+
+  selZone=nzid;
+  renderAll(true);
+}
 
 function doReport(){
   const person=people.find(p=>p.id===parseInt(document.getElementById('rp-team').value));
@@ -1307,10 +1375,11 @@ async function loadPeople() {
 async function savePersonDb(p) {
   if (!sb) return;
   try {
-    await sb.from('people').upsert({
+    const { error } = await sb.from('people').upsert({
       id: p.id, name: p.name, phone: p.phone||null, team: p.team||null, zone: p.zone||null,
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' });
+    if (error) throw error;
   } catch(e) { console.warn('savePersonDb error:', e.message); }
 }
 
