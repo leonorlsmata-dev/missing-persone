@@ -112,21 +112,6 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .progress-track { height: 4px; background: var(--border); border-radius: 2px; }
 .progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.4s ease; }
 
-/* BULK UPDATE PANEL */
-.bulk-panel { padding: 10px 12px; border-bottom: 1px solid var(--border); background: #fffbf0; flex-shrink: 0; }
-.bulk-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
-.bulk-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
-.bulk-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-.bulk-input { flex: 1; min-width: 100px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--text); outline: none; }
-.bulk-input:focus { border-color: var(--accent); }
-.bulk-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 5px 10px; border-radius: 3px; border: 1px solid; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.bulk-done { border-color: rgba(39,168,90,0.5); color: var(--green); background: rgba(39,168,90,0.06); }
-.bulk-done:hover { background: rgba(39,168,90,0.15); }
-.bulk-assigned { border-color: rgba(200,168,0,0.5); color: var(--yellow); background: rgba(200,168,0,0.06); }
-.bulk-assigned:hover { background: rgba(200,168,0,0.15); }
-.bulk-pending { border-color: rgba(214,60,52,0.5); color: var(--red); background: rgba(214,60,52,0.06); }
-.bulk-pending:hover { background: rgba(214,60,52,0.15); }
-
 /* FILTER BAR */
 .filter-bar { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
 .fbtn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 2px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.12s; }
@@ -367,21 +352,6 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
         <input type="checkbox" id="umap-toggle" checked onchange="if(umapLayer){this.checked?map.addLayer(umapLayer):map.removeLayer(umapLayer);}">
         <span class="umap-bar-status" id="umap-status">a carregar...</span>
         <button class="umap-bar-refresh" onclick="loadUmapLayer()" title="Actualizar agora">↻</button>
-      </div>
-
-      <!-- BULK UPDATE -->
-      <div class="bulk-panel">
-        <div class="bulk-label">Marcar zonas em massa</div>
-        <div class="bulk-hint">Números separados por vírgula, ex: 1,3,5,12,18</div>
-        <div class="bulk-row" style="margin-bottom:5px">
-          <input class="bulk-input" id="bulk-input" placeholder="ex: 1,2,3,4,5" />
-          <input class="bulk-input" id="bulk-team" placeholder="Equipa (opcional)" style="max-width:110px" />
-        </div>
-        <div class="bulk-row">
-          <button class="bulk-btn bulk-done" onclick="bulkSet('done')">✓ Vista</button>
-          <button class="bulk-btn bulk-assigned" onclick="bulkSet('assigned')">▶ Atribuída</button>
-          <button class="bulk-btn bulk-pending" onclick="bulkSet('pending')">↺ Por ver</button>
-        </div>
       </div>
 
       <!-- FILTER -->
@@ -1072,31 +1042,6 @@ function setS(id,status,teamName,members,datetime){
   addLog(`${z.name}${teamStr}: ${SL[old]||old} → ${SL[status]}`,status==='done'?'ok':'normal',tn);
   renderAll(true);
   saveZoneState(z);
-}
-
-function bulkSet(status){
-  const input=document.getElementById('bulk-input').value.trim();
-  if(!input)return;
-  const teamName=document.getElementById('bulk-team').value.trim();
-  const ids=input.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n));
-  if(!ids.length)return;
-  let count=0;
-  const dt=nowFull();
-  ids.forEach(id=>{
-    const z=zones.find(x=>x.id===id);
-    if(z){
-      if(!z.searches)z.searches=[];
-      z.searches.unshift({status,team:teamName,members:[],datetime:dt,note:''});
-      z.status=status;
-      if(teamName)z.team=teamName;
-      count++;
-      saveZoneState(z);
-    }
-  });
-  const teamStr=teamName?` [${teamName}]`:'';
-  addLog(`Massa${teamStr}: ${count} zonas → ${SL[status]} (${ids.join(',')})`,status==='done'?'ok':'normal',teamName);
-  document.getElementById('bulk-input').value='';
-  renderAll(true);
 }
 
 function addZone(){
