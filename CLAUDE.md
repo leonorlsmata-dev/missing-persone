@@ -32,8 +32,8 @@ docs/
 ```
 
 Everything is in `index.html`. There are two `<script>` blocks:
-- **Main script** (~500 lines): grid generation, map, zone/team/log state
-- **Supabase script** (~200 lines): GPS tracking, mode selection, live markers
+- **Main script** (~600 lines): grid generation, map, zone/team/log state, people table
+- **Supabase script** (~300 lines): GPS tracking, mode selection, live markers, people/teams/zone DB sync
 
 ---
 
@@ -74,16 +74,16 @@ const SUPABASE_KEY = 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';
 
 **The app works fully without Supabase** — every Supabase call is wrapped in `if (!sb) return`. Without credentials, GPS tracking is disabled but all zone/team management works locally.
 
-### Supabase tables required
+### Supabase tables (all created and active)
 
 ```sql
--- GPS tracking (already exists if GPS was ever set up)
+-- GPS tracking
 CREATE TABLE locations (
   name text PRIMARY KEY, lat float8, lng float8,
   accuracy int4, updated_at timestamptz
 );
 
--- Zone state persistence (to be added — see implementation plan)
+-- Zone state persistence
 CREATE TABLE zone_states (
   id int PRIMARY KEY,
   status text NOT NULL DEFAULT 'pending',
@@ -91,9 +91,30 @@ CREATE TABLE zone_states (
   searches jsonb NOT NULL DEFAULT '[]',
   updated_at timestamptz DEFAULT now()
 );
+
+-- People list
+CREATE TABLE people (
+  id bigint PRIMARY KEY,
+  name text NOT NULL,
+  phone text,
+  team text,
+  zone integer,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Teams (currently unused as a standalone entity — team names live as strings in people.team)
+CREATE TABLE teams (
+  id bigint PRIMARY KEY,
+  name text NOT NULL,
+  lead text,
+  size integer,
+  zone text,
+  "lastCheckin" text,
+  updated_at timestamptz DEFAULT now()
+);
 ```
 
-Both tables need RLS enabled with a public_access policy (`FOR ALL USING (true) WITH CHECK (true)`).
+All tables have RLS enabled with a `public_access` policy (`FOR ALL USING (true) WITH CHECK (true)`).
 
 ---
 
@@ -107,10 +128,20 @@ Both tables need RLS enabled with a public_access policy (`FOR ALL USING (true) 
 | `setS(id, status, team, dt)` | main script | Sets one zone's status + logs history entry |
 | `bulkSet(status)` | main script | Sets multiple zones at once from comma-separated input |
 | `now()` / `nowFull()` | main script top | Time helpers — **must stay at top of script**, used during init |
-| `loadZoneStates()` | supabase script | Load all zone states from Supabase on startup (to be implemented) |
-| `saveZoneState(z)` | supabase script | Persist one zone to Supabase (to be implemented) |
-| `subscribeToZoneChanges()` | supabase script | Realtime sync between devices (to be implemented) |
-| `startCoordinator()` | supabase script | Coordinator mode: polls GPS, loads zone states |
+| `renderPeopleTable()` | main script | Renders Pessoas tab table; also syncs team datalist + filter |
+| `ptAddPerson()` | main script | Add person from inline form row; saves to localStorage + Supabase |
+| `ptEditCell(td, pid, field)` | main script | Inline cell edit (name/phone/team); saves to localStorage + Supabase |
+| `ptSetZone(pid, val)` | main script | Zone select dropdown handler; saves to localStorage + Supabase |
+| `deletePerson(id)` | main script | Remove person; deletes from localStorage + Supabase |
+| `loadZoneStates()` | supabase script | Load all zone states from Supabase on startup |
+| `saveZoneState(z)` | supabase script | Persist one zone to Supabase |
+| `subscribeToZoneChanges()` | supabase script | Realtime sync between devices |
+| `loadPeople()` | supabase script | Load people from Supabase on coordinator startup; overwrites localStorage |
+| `savePersonDb(p)` | supabase script | Upsert one person to Supabase `people` table |
+| `deletePersonDb(id)` | supabase script | Delete person from Supabase by id |
+| `loadTeams()` | supabase script | Load teams from Supabase on coordinator startup |
+| `saveTeamDb(t)` | supabase script | Upsert one team to Supabase `teams` table |
+| `startCoordinator()` | supabase script | Coordinator mode: polls GPS, loads zone/people/teams state |
 | `startSearcher()` | supabase script | Searcher mode: sends GPS to Supabase every 30s |
 
 ---
@@ -125,7 +156,11 @@ Both tables need RLS enabled with a public_access policy (`FOR ALL USING (true) 
   searches: [{ status, team, datetime, note }],  // newest first (unshift)
   poly: [[lat,lng], [lat,lng], [lat,lng], [lat,lng]] }
 
-// Team
+// Person (Pessoas tab)
+{ id: Number (Date.now()), name: String, phone: String|null,
+  team: String|null, zone: Number|null }  // zone is zone.id
+
+// Team (teams[] array — team names are strings in person.team; teams[] currently not heavily used)
 { id: Number, name: String, lead: String, size: Number,
   zone: String, lastCheckin: String }
 
@@ -169,6 +204,12 @@ New entries are added with `unshift()`. Display code reads `searches[0]` as the 
 **Supabase `if (!sb) return` pattern.**
 Every function that touches Supabase must start with this check. The app must remain fully functional with `sb = null`.
 
+**People persistence: localStorage + Supabase.**
+`savePeople()` writes to localStorage (instant, offline). `savePersonDb(p)` upserts to Supabase (async, may fail silently). Both are called together. On coordinator startup, `loadPeople()` overwrites localStorage with Supabase data if any exists — this is the source of truth.
+
+**Team names are strings, not objects.**
+`teams[]` array exists but team identity in practice is the `person.team` string. The datalist in the Pessoas tab combines both `teams[].name` and all distinct `people[].team` values so autocomplete always shows all known teams.
+
 **Zone IDs are 1-indexed integers.**
 `zones[i].id === i + 1`. The `makeGrid()` function reassigns IDs after generation. Bulk input (comma-separated) uses these IDs directly.
 
@@ -182,16 +223,16 @@ Every function that touches Supabase must start with this check. The app must re
 | Zone status management | Done |
 | Bulk zone update | Done |
 | Zone history logging | Done |
-| Team management + check-in | Done |
 | Activity log | Done |
 | Live GPS tracking (Supabase) | Done (requires credentials) |
 | Coordinator / Searcher mode select | Done |
-| **Zone state persistence** | **Pending — Task 2-3 in plan** |
-| **Multi-device realtime sync** | **Pending — Task 4 in plan** |
-| **CSV export** | **Pending — Task 5 in plan** |
-| **Mobile responsive layout** | **Pending — Task 6 in plan** |
-
-Active plan: `docs/superpowers/plans/2026-03-21-persistence-sync-mobile-export.md`
+| Zone state persistence (Supabase) | Done |
+| Realtime zone sync between devices | Done |
+| uMap overlay (Pesquisado + Layer 2) | Done |
+| People table (inline edit, zone assign) | Done |
+| People persistence (Supabase) | Done |
+| **CSV export** | **Pending** |
+| **Mobile responsive layout** | **Pending** |
 
 ---
 
