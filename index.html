@@ -1474,7 +1474,7 @@ document.getElementById('mode-name-input').addEventListener('keydown', e => {
 });
 
 // ─── COORDINATOR MODE ─────────────────────────────────────────────────────────
-function startCoordinator() {
+async function startCoordinator() {
   document.getElementById('tracker-panel').style.display = 'block';
   // Add coordinator button to header
   const btn = document.createElement('button');
@@ -1487,9 +1487,11 @@ function startCoordinator() {
   document.querySelector('.header-right').prepend(btn);
 
   fetchLocations();
-  loadZoneStates();
-  loadPeople();
-  loadTeams();
+  await loadZoneStates();
+  await loadPeople();
+  await loadTeams();
+  await loadLogs();
+  subscribeToLogChanges(); // after loadLogs to avoid race condition on deduplication
   subscribeToZoneChanges();
   trackerInterval = setInterval(fetchLocations, 15000); // refresh every 15s
 }
