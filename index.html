@@ -920,7 +920,7 @@ function ptEditCell(td, pid, field){
     if(field==='name')p.name=val;
     else if(field==='phone')p.phone=val||null;
     else if(field==='team')p.team=val||null;
-    savePeople();renderPeopleTable();
+    savePeople();savePersonDb(p);renderPeopleTable();
   }
   inp.addEventListener('blur',save);
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){inp.removeEventListener('blur',save);save();}if(e.key==='Escape'){td.classList.remove('cell-editing');renderPeopleTable();}});
@@ -946,6 +946,7 @@ function ptAddPerson(){
     }
   }
   savePeople();
+  savePersonDb(p);
   addLog(`Pessoa adicionada: ${name}${team?' ('+team+')':''}${zid?' → '+zones.find(x=>x.id===zid)?.name:''}`,'normal');
   document.getElementById('pt-new-name').value='';
   document.getElementById('pt-new-phone').value='';
@@ -956,12 +957,28 @@ function ptAddPerson(){
   if(zid)renderLayers();
 }
 
+function ptSetZone(pid, val){
+  const p=people.find(x=>x.id===pid);if(!p)return;
+  const zid=parseInt(val)||null;
+  p.zone=zid;
+  if(zid){
+    const z=zones.find(x=>x.id===zid);
+    if(z&&z.status==='pending'){
+      z.status='assigned';z.team=p.team||p.name;
+      if(!z.searches)z.searches=[];
+      z.searches.unshift({status:'assigned',team:p.team||p.name,members:[p.name],datetime:nowFull(),note:''});
+      saveZoneState(z);
+    }
+  }
+  savePeople();savePersonDb(p);renderPeopleTable();renderAll(true);
+}
+
 function ptPickZone(pid){
   const p=people.find(x=>x.id===pid);if(!p)return;
   const zid=prompt(`Zona para "${p.name}" (número da zona, 0 para remover):`);
   if(zid===null)return;
   const num=parseInt(zid);
-  if(num===0){p.zone=null;savePeople();renderPeopleTable();return;}
+  if(num===0){p.zone=null;savePeople();savePersonDb(p);renderPeopleTable();return;}
   const z=zones.find(x=>x.id===num);
   if(!z){alert('Zona não encontrada.');return;}
   p.zone=z.id;
@@ -971,7 +988,7 @@ function ptPickZone(pid){
     z.searches.unshift({status:'assigned',team:p.team||p.name,members:[p.name],datetime:nowFull(),note:''});
     saveZoneState(z);
   }
-  savePeople();
+  savePeople();savePersonDb(p);
   renderPeopleTable();
   renderAll(true);
 }
@@ -1071,6 +1088,7 @@ function deletePerson(id){
   if(!confirm('Remover pessoa?'))return;
   people=people.filter(p=>p.id!==id);
   savePeople();
+  deletePersonDb(id);
   renderPeopleTable();
   renderStats();
 }
@@ -1086,7 +1104,7 @@ function assignPersonToZone(){
   z.status='assigned';
   if(!z.searches)z.searches=[];
   z.searches.unshift({status:'assigned',team:z.team,members:[person.name],datetime:nowFull(),note:''});
-  savePeople();
+  savePeople();savePersonDb(person);
   addLog(`${z.name} → ${person.name}${person.team?' ('+person.team+')':''}`, 'normal', z.team);
   saveZoneState(z);
   renderAll(true);
@@ -1271,6 +1289,60 @@ const colorFor = (name) => {
   return PERSON_COLORS[Math.abs(hash) % PERSON_COLORS.length];
 };
 
+// ─── PEOPLE / TEAMS SYNC ──────────────────────────────────────────────────────
+async function loadPeople() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('people').select('*').order('name');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      people = data.map(r => ({ id: r.id, name: r.name, phone: r.phone||null, team: r.team||null, zone: r.zone||null }));
+      localStorage.setItem('brc_people', JSON.stringify(people));
+      renderPeopleTable();
+      renderStats();
+    }
+  } catch(e) { console.warn('loadPeople error:', e.message); }
+}
+
+async function savePersonDb(p) {
+  if (!sb) return;
+  try {
+    await sb.from('people').upsert({
+      id: p.id, name: p.name, phone: p.phone||null, team: p.team||null, zone: p.zone||null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  } catch(e) { console.warn('savePersonDb error:', e.message); }
+}
+
+async function deletePersonDb(id) {
+  if (!sb) return;
+  try {
+    await sb.from('people').delete().eq('id', id);
+  } catch(e) { console.warn('deletePersonDb error:', e.message); }
+}
+
+async function loadTeams() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('teams').select('*').order('name');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      teams = data.map(r => ({ id: r.id, name: r.name, lead: r.lead||'', size: r.size||0, zone: r.zone||'', lastCheckin: r.lastCheckin||'' }));
+      localStorage.setItem('brc_teams', JSON.stringify(teams));
+    }
+  } catch(e) { console.warn('loadTeams error:', e.message); }
+}
+
+async function saveTeamDb(t) {
+  if (!sb) return;
+  try {
+    await sb.from('teams').upsert({
+      id: t.id, name: t.name, lead: t.lead||'', size: t.size||0, zone: t.zone||'', lastCheckin: t.lastCheckin||'',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  } catch(e) { console.warn('saveTeamDb error:', e.message); }
+}
+
 async function loadZoneStates() {
   if (!sb) return;
   try {
@@ -1357,6 +1429,8 @@ function startCoordinator() {
 
   fetchLocations();
   loadZoneStates();
+  loadPeople();
+  loadTeams();
   subscribeToZoneChanges();
   trackerInterval = setInterval(fetchLocations, 15000); // refresh every 15s
 }
