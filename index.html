@@ -1136,7 +1136,7 @@ function doReport(){
   renderAll(true);
 }
 
-function addLog(t,type,team){logs.unshift({time:now(),text:t,type,team:team||''});if(logs.length>200)logs.pop();}
+function addLog(t,type,team){const entry={id:Date.now(),time:now(),text:t,type,team:team||''};logs.unshift(entry);if(logs.length>200)logs.pop();saveLogDb(entry);}
 function switchTab(n){const ns=['zones','people','log'];document.querySelectorAll('.stab').forEach((t,i)=>t.classList.toggle('active',ns[i]===n));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');if(n==='people')renderPeopleTable();}
 function openModal(n){
   if(n==='report'){
@@ -1393,6 +1393,48 @@ function subscribeToZoneChanges() {
         renderAll(true);
       }
     )
+    .subscribe();
+}
+
+// ─── ACTIVITY LOG SYNC ────────────────────────────────────────────────────────
+async function saveLogDb(entry) {
+  if (!sb) return;
+  try {
+    await sb.from('activity_logs').upsert({
+      id: entry.id,
+      time: entry.time,
+      text: entry.text,
+      type: entry.type,
+      team: entry.team
+    });
+  } catch(e) { console.warn('saveLogDb error:', e.message); }
+}
+
+async function loadLogs() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('activity_logs').select('*').order('id', { ascending: false });
+    if (error) throw error;
+    if (!data || !data.length) return;
+    const existing = new Set(logs.filter(l => l.id).map(l => l.id));
+    for (const row of data) {
+      if (!existing.has(row.id)) logs.push({ id: row.id, time: row.time, text: row.text, type: row.type, team: row.team });
+    }
+    logs.sort((a, b) => (b.id || 0) - (a.id || 0));
+    renderLog();
+  } catch(e) { console.warn('loadLogs error:', e.message); }
+}
+
+function subscribeToLogChanges() {
+  if (!sb) return;
+  sb.channel('activity_logs')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_logs' }, payload => {
+      const row = payload.new;
+      if (!logs.find(l => l.id === row.id)) {
+        logs.unshift({ id: row.id, time: row.time, text: row.text, type: row.type, team: row.team });
+        renderLog();
+      }
+    })
     .subscribe();
 }
 
